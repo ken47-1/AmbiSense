@@ -3,11 +3,14 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "WeatherTypes.h"
 #include "fonts/inconsolata_14.h"
 #include "fonts/inconsolata_16.h"
 #include "fonts/material_design_other_20.h"
 #include "fonts/material_design_weather_40.h"
+
+#include "config/LocationConfig.h"
+#include "WeatherTypes.h"
+
 
 /* ============ THIRD-PARTY ============ */
 #include <lvgl.h>
@@ -30,10 +33,6 @@ enum class Screen     { DASHBOARD, CONFIG };
 enum class DateFormat { TEXT, NUMERIC };
 
 /* =============== CONFIG =============== */
-#ifndef LOCATION_NAME
-#define LOCATION_NAME "Bangkok"
-#endif
-
 #define CLK_SIZE 140
 
 /* =============== API =============== */
