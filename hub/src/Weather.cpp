@@ -3,7 +3,8 @@
 
 /* ===== INCLUDES ===== */
 /* --- PROJECT --- */
-#include "config\Config.h"
+#include "config/Config.h"
+#include "config/LocationConfig.h"
 
 /* Constructor */
 Weather::Weather() {

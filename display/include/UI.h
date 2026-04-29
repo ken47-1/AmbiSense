@@ -11,7 +11,6 @@
 #include "config/LocationConfig.h"
 #include "WeatherTypes.h"
 
-
 /* ============ THIRD-PARTY ============ */
 #include <lvgl.h>
 #include <Preferences.h>

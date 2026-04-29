@@ -1,10 +1,6 @@
 /* ========== Weather.h ========== */
 #pragma once
 
-/* ===== INCLUDES ===== */
-/* --- PROJECT --- */
-#include "config/LocationConfig.h"
-
 /* --- THIRD-PARTY --- */
 #include <ArduinoJson.h>
 
@@ -43,8 +39,3 @@ private:
     WeatherData _data;
     SemaphoreHandle_t _mutex;
 };
-
-/* ===== WEATHER CODE HELPERS ===== */
-const char* getWeatherDesc(int code);
-const char* getWeatherIcon(int code);
-const char* getWindDir(int deg);
