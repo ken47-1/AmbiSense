@@ -1,5 +1,5 @@
 /* ========== Config.h ========== */
-/* Shared protocol definitions — AmbiSense Hub and Display */
+/* Shared protocol definitions between the AmbiSense Hub and Display */
 #pragma once
 
 /* ===== INCLUDES ===== */
@@ -7,13 +7,14 @@
 #include <stdint.h>
 
 /* ===== DEBUG ===== */
-#define DEBUG_NETWORK 0
+#define DEBUG_NET 0
+#define DEBUG_GEO 0
 
 /* ===== TIME ===== */
-constexpr long     GMT_OFFSET_SEC         = 7 * 3600;   // UTC+7, Bangkok
-constexpr int      DAYLIGHT_OFFSET_SEC    = 0;          // No DST in Thailand
-constexpr int      TARGET_SYNC_HOUR       = 12;
-constexpr int      TARGET_SYNC_MINUTE     = 0;
+constexpr long     GMT_OFFSET_SEC         = 7 * 3600;   // UTC+7
+constexpr int32_t  DAYLIGHT_OFFSET_SEC    = 0;          // No DST
+constexpr int32_t  TARGET_SYNC_HOUR       = 12;
+constexpr int32_t  TARGET_SYNC_MINUTE     = 0;
 
 /* ===== WEATHER ===== */
 constexpr uint32_t WEATHER_INTERVAL_MS      = 30 * 60 * 1000;   // 30 minutes
@@ -39,37 +40,40 @@ constexpr uint8_t PACKET_TYPE_CMD    = 0x04;
 constexpr uint8_t CMD_FORCE_NTP_SYNC = 0x01;
 
 /* ===== PACKET STRUCTS ===== */
-
 /* --- Hub -> Display --- */
 struct __attribute__((packed)) DataPacket {
     /* --- System --- */
-    uint8_t type;            // PACKET_TYPE_DATA
-    uint8_t seq;             // Rolling sequence number
-    uint8_t channel;         // Wi-Fi channel
-    uint8_t wifiConnected;   // 1 if Hub is connected to Wi-Fi, 0 otherwise
+    uint8_t  type;           // PACKET_TYPE_DATA
+    uint8_t  seq;            // Rolling sequence number
+    uint8_t  channel;        // Wi-Fi channel
+    uint8_t  wifiConnected;  // 1 if Hub is connected to Wi-Fi, 0 otherwise
     
     /* --- RTC --- */
-    uint32_t timestamp;   // Unix timestamp from DS3231
+    uint32_t timestamp;      // Unix timestamp from DS3231
+
+    /* --- Location --- */
+    uint8_t  locationValid;  // Location validity check
+    char     city[33];
 
     /* --- Weather --- */
-    uint8_t weatherValid;      // Weather validity check
-    int     weatherCode;
-    float   outsideTemp;
-    float   apparentTemp;      // "Feels Like" Temperature
-    int     outsideHumi;
-    int     outsidePressure;
-    float   windSpeed;
-    int     windDir;
-    char    sunrise[6];
-    char    sunset[6];
+    uint8_t  weatherValid;   // Weather validity check
+    uint8_t  weatherCode;
+    float    outsideTemp;
+    float    apparentTemp;   // "Feels Like" Temperature
+    uint8_t  outsideHumi;
+    uint16_t outsidePress;
+    float    windSpeed;
+    int16_t  windDirection;
+    char     sunrise[8];
+    char     sunset[8];
 
     /* --- Room Metrics --- */
-    uint8_t roomValid;   // Room sensors validity check
-    float   roomTemp;    // Room temperature, Celsius
-    float   roomHumi;    // Room humidity, percent
+    uint8_t roomValid;       // Room sensors validity check
+    float   roomTemp;        // Room temperature, Celsius
+    float   roomHumi;        // Room humidity, percent
 };
 
-static_assert(sizeof(DataPacket) < 200, "DataPacket too large for ESP-NOW");
+static_assert(sizeof(DataPacket) < 240, "DataPacket too large for ESP-NOW");
 
 /* --- Display -> Hub --- */
 struct __attribute__((packed)) ConfigPacket {

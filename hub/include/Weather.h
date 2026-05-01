@@ -11,16 +11,21 @@
 #include "freertos/semphr.h"
 
 struct WeatherData {
+    bool    valid;
+    
+    uint8_t weatherCode;
     float   temp;
+    
     float   apparentTemp;
     int     humidity;
+    
+    int     pressure;
+
     float   windSpeed;
     int     windDirection;
-    int     pressure;
-    int     weatherCode;
-    char    sunrise[6];   // "HH:MM"
-    char    sunset[6];    // "HH:MM"
-    bool    valid;
+    char    sunrise[8];   // "HH:MM"
+    char    sunset[8];    // "HH:MM"
+    
 };
 
 

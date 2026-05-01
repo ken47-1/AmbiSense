@@ -1,5 +1,5 @@
 /* ========== HardwareConfig.h ========== */
-/* Hub (ESP32-WROOM) hardware pin definitions */
+/* AmbiSense Hub (ESP32-WROOM) hardware pin definitions */
 #pragma once
 
 /* ===== DHT22 ===== */

@@ -42,4 +42,4 @@ WeatherColors::DARK_GRAY
 
 /* =============== API =============== */
 WeatherInfo getWeatherInfo(int code);
-const char* getWindDir(int deg);
+const char* getWindDirection(int deg);

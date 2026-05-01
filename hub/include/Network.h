@@ -7,6 +7,7 @@
 #include "Sensors.h"
 #include "RTCManager.h"
 #include "Weather.h"
+#include "LocationResolver.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <WiFi.h>
@@ -67,9 +68,10 @@ private:
 
     /* ========= STATE ========= */
     /* ------ Module references ------ */
-    Sensors*    _sensors;
-    RTCManager* _rtc;
-    Weather     _weather;
+    Sensors*         _sensors;
+    RTCManager*      _rtc;
+    Weather          _weather;
+    LocationResolver _locationResolver;
 
     /* ------ Flash ------ */
     Preferences _prefs;

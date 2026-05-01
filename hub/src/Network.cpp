@@ -46,7 +46,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     else if (type == PACKET_TYPE_ACK && len == sizeof(AckPacket)) {
         AckPacket pkt;
         memcpy(&pkt, data, sizeof(pkt));
-        #if DEBUG_NETWORK
+        #if DEBUG_NET
         Serial.printf("[NET] ACK from display seq=%u\n", pkt.ack_seq);
         #endif
     }
@@ -61,18 +61,30 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
 /* ------ _buildDataPacket ------ */
 void Network::_buildDataPacket(DataPacket& pkt, const WeatherData& w) {
     pkt      = {};
-    pkt.type = PACKET_TYPE_DATA;
 
     /* --- System --- */
+    pkt.type          = PACKET_TYPE_DATA;
+    pkt.seq           = _seqCounter++;
+    pkt.channel       = WiFi.channel();
+    pkt.wifiConnected = isConnected() ? 1 : 0;
+
+    /* --- RTC --- */
     if (_rtc) {
         DateTime now  = _rtc->getTime();
         time_t local_now;
         time(&local_now); 
         pkt.timestamp = (uint32_t)local_now;
     }
-    pkt.seq           = _seqCounter++;
-    pkt.channel       = WiFi.channel();
-    pkt.wifiConnected = isConnected() ? 1 : 0;
+
+    /* --- Location --- */
+    String city = _locationResolver.getCachedCity();
+    if (_locationResolver.isValid() && city.length() > 0) {
+        strlcpy(pkt.city, city.c_str(), sizeof(pkt.city));
+        pkt.locationValid = 1;
+    } else {
+        strlcpy(pkt.city, "Unknown", sizeof(pkt.city));
+        pkt.locationValid = 0;
+    }
 
     /* --- Weather --- */
     pkt.weatherValid    = w.valid ? 1 : 0;
@@ -80,13 +92,13 @@ void Network::_buildDataPacket(DataPacket& pkt, const WeatherData& w) {
     pkt.outsideTemp     = w.temp;
     pkt.apparentTemp    = w.apparentTemp;
     pkt.outsideHumi     = w.humidity;
-    pkt.outsidePressure = w.pressure;
+    pkt.outsidePress    = w.pressure;
     pkt.windSpeed       = w.windSpeed;
-    pkt.windDir         = w.windDirection;
+    pkt.windDirection   = w.windDirection;
     strlcpy(pkt.sunrise, w.sunrise, sizeof(pkt.sunrise));
     strlcpy(pkt.sunset,  w.sunset,  sizeof(pkt.sunset));
 
-    /* --- Room sensors --- */
+    /* --- Room Metrics --- */
     pkt.roomValid = (_sensors && _sensors->isValid()) ? 1 : 0;
     if (_sensors && _sensors->isValid()) {
         pkt.roomTemp = _sensors->getTemp();
@@ -152,6 +164,7 @@ void Network::begin() {
     }
     
     _weather.begin();
+    _locationResolver.begin();
 }
 
 /* ========= update ========= */
@@ -173,7 +186,7 @@ void Network::update() {
         _buildDataPacket(pkt, w); 
         broadcastData(pkt);
         
-        #if DEBUG_NETWORK
+        #if DEBUG_NET
         Serial.println("[NET] Periodic broadcast sent");
         #endif
     }

@@ -57,7 +57,7 @@ WeatherInfo getWeatherInfo(int code) {
     return UNKNOWN_WEATHER;
 }
 
-const char* getWindDir(int deg) {
+const char* getWindDirection(int deg) {
     static const char* dirs[] = {
         "North","NE","East","SE","South","SW","West","NW"
     };

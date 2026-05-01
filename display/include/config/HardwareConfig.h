@@ -1,4 +1,5 @@
 /* ========== HardwareConfig.h ========== */
+/* AmbiSense Display (ESP32-WROOM) hardware pin and display definitions */
 #pragma once
 
 /* ===== DISPLAY ===== */
