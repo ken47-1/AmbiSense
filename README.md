@@ -1,6 +1,6 @@
 # AmbiSense
 
-![AmbiSense Display and Hub](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260501_231704.jpg?raw=true)
+![AmbiSense Display and Hub](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260501_233004.jpg?raw=true)
 
 Real-time ambient weather and room sensor display. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates, and broadcasts to ESP32-2432S028 Display over ESP-NOW. Dashboard shows temperature, humidity, pressure, wind, sunrise/sunset, plus local room metrics from DHT22. Theme toggle, optional seconds display, configurable date format. Auto-centering UI ensures perfect alignment even when values change length.
 
