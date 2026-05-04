@@ -37,6 +37,16 @@
 #define BTN_H       36
 #define CONT_H      (SCR_H - TAB_H - BTN_H)
 
+/* Row offset adjustments */
+const int R1_X_OFFSET = -2;
+const int R2_X_OFFSET = -3;
+const int R3_X_OFFSET = -3;
+const int R4_X_OFFSET = -4;
+const int R5_X_OFFSET = -4;
+const int R6_X_OFFSET = -3;
+const int R7_X_OFFSET = -3;
+const int R8_X_OFFSET = -4;
+
 /* ============ PALETTES ============ */
 static const Palette DARK = {
     .bg          = 0x000000,
@@ -269,7 +279,7 @@ void UI::_buildDashboard() {
 
     /* Row 1: Weather icon + temp */
     {
-    const int icon_gap = 6;
+    const int icon_gap = 5;
     const int r1_y     = MARGIN - 2;
 
     _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->subtext, 0, r1_y);
@@ -279,43 +289,45 @@ void UI::_buildDashboard() {
     int iw = lv_obj_get_width(_lblWeatherIcon);
     int tw = lv_obj_get_width(_lblWeatherTemp);
     int sx = (VDIV_X - (iw + icon_gap + tw)) / 2;
+    sx += R1_X_OFFSET;
     lv_obj_set_x(_lblWeatherIcon, sx);
     lv_obj_set_x(_lblWeatherTemp, sx + iw + icon_gap);
     }
 
     /* Row 2: Weather condition */
     {
-    const int r2_y = 46;
+    const int r2_y = 44;
 
     _lblCondition = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_18, theme->text,
         MARGIN, r2_y);
     lv_obj_set_style_text_align(_lblCondition, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_lblCondition, VDIV_X - (MARGIN * 2));
+    lv_obj_set_width(_lblCondition, VDIV_X - (MARGIN * 2) + R2_X_OFFSET);
     }
 
     /* Row 3: Location */
     {
-    const int icon_gap = 2;
-    const int r3_y     = 70;
+    const int icon_gap = 0;
+    const int r3_y     = 68;
 
-    _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->red, 0, r3_y + 2);
-    _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_18, theme->text, 0, r3_y);
+    _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->red, 0, r3_y + 0);
+    _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_16, theme->text, 0, r3_y);
     
     lv_obj_update_layout(_scrDashboard);
     int iw = lv_obj_get_width(_lblLocationIcon);
     int tw = lv_obj_get_width(_lblLocation);
     int sx = (VDIV_X - (iw + icon_gap + tw)) / 2;
+    sx += R3_X_OFFSET;
     lv_obj_set_x(_lblLocationIcon, sx);
     lv_obj_set_x(_lblLocation, sx + iw + icon_gap);
     }
 
     /* Row 4: Feels like */
     {
-    const int r4_y = 94;
+    const int r4_y = 90;
 
     _lblFeelsLike = _makeLabel(_scrDashboard, "Feels like: --\xC2\xB0""C", &lv_font_montserrat_16, theme->text,
-        MARGIN, lv_obj_get_y(_lblLocation) + lv_obj_get_height(_lblLocation) + 6);
-    lv_obj_set_width(_lblFeelsLike, VDIV_X - (MARGIN * 2));
+        MARGIN, r4_y);
+    lv_obj_set_width(_lblFeelsLike, VDIV_X - (MARGIN * 2) + R4_X_OFFSET);
     lv_obj_set_style_text_align(_lblFeelsLike, LV_TEXT_ALIGN_CENTER, 0);
     }
 
@@ -324,7 +336,6 @@ void UI::_buildDashboard() {
     const int humi_gap    = 0;
     const int press_gap   = 4;
     const int pair_gap    = 10;
-    const int r5_x_offset = -4;
     const int r5_y        = 125;
     
     _lblHumidIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r5_y - 2);
@@ -339,7 +350,7 @@ void UI::_buildDashboard() {
     int pvw = lv_obj_get_width(_lblPressVal);
     int total_w = hiw + humi_gap + hvw + pair_gap + piw + press_gap + pvw;
     int sx = (VDIV_X - total_w) / 2;
-    sx += r5_x_offset;
+    sx += R5_X_OFFSET;
     lv_obj_set_x(_lblHumidIcon, sx);
     lv_obj_set_x(_lblHumidVal,  sx + hiw + humi_gap);
     lv_obj_set_x(_lblPressIcon, sx + hiw + humi_gap + hvw + pair_gap);
@@ -349,7 +360,6 @@ void UI::_buildDashboard() {
     /* Row 6: Wind Speed & Direction */
     {
     const int wind_gap    = 4;
-    const int r6_x_offset = -3;
     const int r6_y        = 144;
 
     _lblWindIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9D", &material_design_other_20, theme->wind, 0, r6_y - 1);
@@ -359,17 +369,16 @@ void UI::_buildDashboard() {
     int iw = lv_obj_get_width(_lblWindIcon);
     int tw = lv_obj_get_width(_lblWindDirVal);
     int sx = (VDIV_X - (iw + wind_gap + tw)) / 2;
-    sx += r6_x_offset;
+    sx += R6_X_OFFSET;
     lv_obj_set_x(_lblWindIcon, sx);
     lv_obj_set_x(_lblWindDirVal, sx + iw + wind_gap);
     }
 
     /* Row 7: Sunrise & Sunset */
     {
-    const int r7_y         = 165;
-    const int sun_gap      = 4;
-    const int sun_pair_gap = 10;
-    const int r7_x_offset  = -2;
+    const int sun_gap  = 4;
+    const int pair_gap = 10;
+    const int r7_y     = 165;
 
     _lblSunriseIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9C", &material_design_other_20, theme->gold, 0, r7_y - 1);
     _lblSunriseVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
@@ -381,22 +390,22 @@ void UI::_buildDashboard() {
     int rvw = lv_obj_get_width(_lblSunriseVal);
     int siw = lv_obj_get_width(_lblSunsetIcon);
     int svw = lv_obj_get_width(_lblSunsetVal);
-    int total_w = riw + sun_gap + rvw + sun_pair_gap + siw + sun_gap + svw;
+    int total_w = riw + sun_gap + rvw + pair_gap + siw + sun_gap + svw;
     int sx = (VDIV_X - total_w) / 2;
-    sx += r7_x_offset;
+    sx += R7_X_OFFSET;
     lv_obj_set_x(_lblSunriseIcon, sx);
     lv_obj_set_x(_lblSunriseVal, sx + riw + sun_gap);
-    lv_obj_set_x(_lblSunsetIcon, sx + riw + sun_gap + rvw + sun_pair_gap);
-    lv_obj_set_x(_lblSunsetVal, sx + riw + sun_gap + rvw + sun_pair_gap + siw + sun_gap);
+    lv_obj_set_x(_lblSunsetIcon, sx + riw + sun_gap + rvw + pair_gap);
+    lv_obj_set_x(_lblSunsetVal, sx + riw + sun_gap + rvw + pair_gap + siw + sun_gap);
     }
 
     /* Row 8: Room sensors */
+    {
     const int r8_header_y = 195;
     const int r8_y        = 217;
     const int temp_gap    = 0;
     const int hum_gap     = 0;
-    const int r8_pair_gap = 11;
-    const int r8_x_offset = -4;
+    const int pair_gap    = 11;
     
     _lblTempIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x94\x8F", &material_design_other_20, theme->deep_orange, 0, r8_y - 2);
     _lblRoomTempVal = _makeLabel(_scrDashboard, "--.-\xC2\xB0""C", &inconsolata_16, theme->text, 0, r8_y);
@@ -408,16 +417,17 @@ void UI::_buildDashboard() {
     int tvw = lv_obj_get_width(_lblRoomTempVal);
     int hiiw = lv_obj_get_width(_lblHumiIcon);
     int hvhw = lv_obj_get_width(_lblRoomHumidVal);
-    int total_w = tiw + temp_gap + tvw + r8_pair_gap + hiiw + hum_gap + hvhw;
+    int total_w = tiw + temp_gap + tvw + pair_gap + hiiw + hum_gap + hvhw;
     int sx = (VDIV_X - total_w) / 2;
-    sx += r8_x_offset;
+    sx += R8_X_OFFSET;
     lv_obj_set_x(_lblTempIcon, sx);
     lv_obj_set_x(_lblRoomTempVal, sx + tiw + temp_gap);
-    lv_obj_set_x(_lblHumiIcon, sx + tiw + temp_gap + tvw + r8_pair_gap);
-    lv_obj_set_x(_lblRoomHumidVal, sx + tiw + temp_gap + tvw + r8_pair_gap + hiiw + hum_gap);
+    lv_obj_set_x(_lblHumiIcon, sx + tiw + temp_gap + tvw + pair_gap);
+    lv_obj_set_x(_lblRoomHumidVal, sx + tiw + temp_gap + tvw + pair_gap + hiiw + hum_gap);
 
     _lblRoomHeader = _makeLabel(_scrDashboard, "ROOM METRICS", &inconsolata_16, theme->text,
-        MARGIN, lv_obj_get_y(_lblRoomTempVal) - fh16 - 2);
+        MARGIN - 5, lv_obj_get_y(_lblRoomTempVal) - fh16 - 2);
+    }
 
     /* Clock */
     _canvas = lv_canvas_create(_scrDashboard);
@@ -447,13 +457,13 @@ void UI::_buildDashboard() {
     lv_obj_set_style_radius(_statusDot, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(_statusDot, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(_statusDot, lv_color_hex(theme->dim), 0);
-    lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, -8, 8);
+    lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, (-6) - 3, (6));
 
     _btnSettings = lv_label_create(_scrDashboard);
     lv_label_set_text(_btnSettings, LV_SYMBOL_SETTINGS);
     lv_obj_set_style_text_font(_btnSettings, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_btnSettings, lv_color_hex(theme->settings), 0);
-    lv_obj_align(_btnSettings, LV_ALIGN_BOTTOM_RIGHT, -8, -7);
+    lv_obj_align(_btnSettings, LV_ALIGN_BOTTOM_RIGHT, (-6) - 3, (-6) + 1);
     lv_obj_add_flag(_btnSettings, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(_btnSettings, _onSettingsBtnCb, LV_EVENT_CLICKED, this);
 
@@ -474,6 +484,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     int iw = lv_obj_get_width(_lblWeatherIcon);
     int tw = lv_obj_get_width(_lblWeatherTemp);
     int sx = (VDIV_X - (iw + 6 + tw)) / 2;
+    sx += R1_X_OFFSET;
     lv_obj_set_x(_lblWeatherIcon, sx);
     lv_obj_set_x(_lblWeatherTemp, sx + iw + 6);
 
@@ -492,6 +503,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     iw = lv_obj_get_width(_lblLocationIcon);
     tw = lv_obj_get_width(_lblLocation);
     sx = (VDIV_X - (iw + 2 + tw)) / 2;
+    sx += R3_X_OFFSET;
     lv_obj_set_x(_lblLocationIcon, sx);
     lv_obj_set_x(_lblLocation, sx + iw + 2);
 
@@ -511,6 +523,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     int pvw = lv_obj_get_width(_lblPressVal);
     int total_hp = hiw + 0 + hvw + 10 + piw + 4 + pvw;
     sx = (VDIV_X - total_hp) / 2;
+    sx += R5_X_OFFSET;
     lv_obj_set_x(_lblHumidIcon, sx);
     lv_obj_set_x(_lblHumidVal, sx + hiw + 0);
     lv_obj_set_x(_lblPressIcon, sx + hiw + 0 + hvw + 10);
@@ -524,6 +537,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     iw = lv_obj_get_width(_lblWindIcon);
     tw = lv_obj_get_width(_lblWindDirVal);
     sx = (VDIV_X - (iw + 4 + tw)) / 2;
+    sx += R6_X_OFFSET;
     lv_obj_set_x(_lblWindIcon, sx);
     lv_obj_set_x(_lblWindDirVal, sx + iw + 4);
 
@@ -537,6 +551,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     int svw = lv_obj_get_width(_lblSunsetVal);
     int total_sun = riw + 4 + rvw + 10 + siw + 4 + svw;
     sx = (VDIV_X - total_sun) / 2;
+    sx += R7_X_OFFSET;
     lv_obj_set_x(_lblSunriseIcon, sx);
     lv_obj_set_x(_lblSunriseVal, sx + riw + 4);
     lv_obj_set_x(_lblSunsetIcon, sx + riw + 4 + rvw + 10);
@@ -559,6 +574,7 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     int hvhw = lv_obj_get_width(_lblRoomHumidVal);
     int total_room = tiw + 0 + tvw + 11 + hiiw + 0 + hvhw;
     sx = (VDIV_X - total_room) / 2;
+    sx += R8_X_OFFSET;
     lv_obj_set_x(_lblTempIcon, sx);
     lv_obj_set_x(_lblRoomTempVal, sx + tiw + 0);
     lv_obj_set_x(_lblHumiIcon, sx + tiw + 0 + tvw + 11);
