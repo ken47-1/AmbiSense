@@ -22,13 +22,13 @@ Both devices are independent; can develop/test separately. Communication via ESP
 ### Modules
 
 **Network** (`include/Network.h` / `src/Network.cpp`)
-- Manages Wi-Fi connection and ESP-NOW broadcast
+- ESP-NOW RX callback
+- Parses DataPacket from Hub
+- Channel auto-sync: locks to Hub's Wi-Fi channel on first packet
+- **Offline detection & channel hopping:** If no valid DataPacket is received for 15 seconds, the Display enters a scanning state. It sequentially hops through Wi-Fi channels 1–13 (every 1 second) until the Hub is found again. Once a packet arrives, the Display locks to that channel and resumes normal operation.
+- Sends ConfigPacket to update credentials
+- Sends CmdPacket for commands (e.g., force NTP sync)
 - Loads/saves credentials from NVS (Preferences API, namespace `"ambisense"`)
-- Receives ConfigPacket from Display to update Wi-Fi/NTP at runtime
-- Receives CmdPacket for commands (e.g., force NTP sync)
-- Builds and broadcasts DataPacket every 250ms (even if offline)
-- Handles ESP-NOW RX callbacks (CONFIG, CMD, ACK packets)
-- Periodic reconnect attempt if WiFi drops (every 30s)
 
 **Weather** (`include/Weather.h` / `src/Weather.cpp`)
 - Fetches current weather from Open-Meteo API (free, no API key)
@@ -89,7 +89,7 @@ DataPacket assembly in Network::update()
 └── Status flags (WiFi connected, data valid, channel, seq)
     ↓
 ESP-NOW broadcast (every 250ms, broadcast address)
-    ↓
+    ↓w
 Display RX
 ```
 
@@ -195,11 +195,11 @@ float    roomHumi          // %
 ```
 ESP-NOW RX (broadcast from Hub, every 250ms)
     ↓
-DataPacket received in Network RX callback
+If no packet for 15 seconds → channel hopping scan (ch 1–13, 1 sec each)
     ↓
-Network calls onDataReceived(pkt) callback
+DataPacket received → lock to Hub's channel → resume normal operation
     ↓
-Main loop stores packet in g_lastPkt (mutex-protected)
+DataPacket stored in g_lastPkt (mutex-protected)
     ↓
 UI::update() called every 100ms with DataPacket&
 ├── Format time/date (HH:MM[:SS], optional seconds)
