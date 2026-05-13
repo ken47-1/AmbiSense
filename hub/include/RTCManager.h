@@ -29,7 +29,7 @@ public:
 
     /* ========= LIFECYCLE ========= */
     void begin();
-    void update(bool wifiConnected, const char* ntpServer);
+    void update(uint32_t nowMs, bool wifiConnected, const char* ntpServer);
 
     /* ========= GETTERS ========= */
     DateTime  getTime();

@@ -2,8 +2,8 @@
 #include "Network.h"
 
 /* =============== INCLUDES =============== */
-/* ============ CORE ============ */
-#include <Arduino.h>
+/* ============ PROJECT ============ */
+#include "config/LocationConfig.h"
 
 /* =============== INTERNAL STATE =============== */
 /* ============ SINGLETONS ============ */
@@ -70,13 +70,17 @@ void Network::_buildDataPacket(DataPacket& pkt, const WeatherData& w) {
 
     /* --- RTC --- */
     if (_rtc) {
-        DateTime now  = _rtc->getTime();
-        time_t local_now;
-        time(&local_now); 
-        pkt.timestamp = (uint32_t)local_now;
+        // Get the real time from the chip and put it in the packet
+        DateTime dt = _rtc->getTime();
+        pkt.timestamp = (uint32_t)dt.unixtime();
     }
 
     /* --- Location --- */
+    // If location not valid, request it (non-blocking)
+    if (!_locationResolver.isValid()) {
+        _locationResolver.getCityName(LOCATION_LAT, LOCATION_LON);
+    }
+
     String city = _locationResolver.getCachedCity();
     if (_locationResolver.isValid() && city.length() > 0) {
         strlcpy(pkt.city, city.c_str(), sizeof(pkt.city));
@@ -117,6 +121,8 @@ Network::Network()
     , _seqCounter(0)
     , _lastBroadcastMs(0)
     , _lastReconnectAttempt(0)
+    , _wifiState(WifiState::IDLE)
+    , _connectTimeoutMs(0)
     , _onConfig(nullptr)
     , _onCmd(nullptr)
     , _sensors(nullptr)
@@ -138,6 +144,9 @@ void Network::attachModules(Sensors* sensors, RTCManager* rtc) {
 void Network::begin() {
     WiFi.mode(WIFI_STA);
 
+    _locationResolver.begin();
+    _weather.begin();
+
     if (esp_now_init() != ESP_OK) {
         Serial.println("[NET] ESP-NOW init failed");
         return;
@@ -151,7 +160,7 @@ void Network::begin() {
     peer.encrypt = false;
     esp_now_add_peer(&peer);
 
-    Serial.println("[NET] ESP-NOW ready");
+    Serial.println("[NET] ESP-NOW INIT");
     
     if (!loadConfig()) {
         Serial.println("[NET] Using default config...");
@@ -162,25 +171,56 @@ void Network::begin() {
     } else {
         connectWiFi();
     }
-    
-    _weather.begin();
-    _locationResolver.begin();
 }
 
 /* ========= update ========= */
 void Network::update() {
-    /* ------ Maintain Cloud Link (Weather & NTP updates) ------ */
-    // If we have credentials but lost Wi-Fi, retry every 30 seconds
-    if (_hasConfig && !isConnected() && (millis() - _lastReconnectAttempt > 30000)) {
-        connectWiFi();
-        _lastReconnectAttempt = millis();
+    _now = millis();
+
+    /* ------ LocationResolver ------ */
+    _locationResolver.update();
+
+    /* ------ Wi-Fi State Machine ------ */
+    switch (_wifiState) {
+        case WifiState::CONNECTING:
+            if (WiFi.status() == WL_CONNECTED) {
+                _wifiState = WifiState::CONNECTED;
+                esp_wifi_set_ps(WIFI_PS_NONE);
+                Serial.printf("\n[NET] Connected to IP: %s\n", WiFi.localIP().toString().c_str());
+            } 
+            else if (_now - _connectTimeoutMs > 15000) { // 15s timeout
+                Serial.println("\n[NET] Connection timed out");
+                _wifiState = WifiState::WAIT_RETRY;
+                _lastReconnectAttempt = _now;
+            }
+            break;
+
+        case WifiState::CONNECTED:
+            if (WiFi.status() != WL_CONNECTED) {
+                Serial.println("[NET] Wi-Fi Lost");
+                _wifiState = WifiState::WAIT_RETRY;
+                _lastReconnectAttempt = _now;
+            }
+            break;
+
+        case WifiState::WAIT_RETRY:
+        case WifiState::IDLE:
+            if (_hasConfig && (_now - _lastReconnectAttempt > 30000)) {
+                connectWiFi();
+            }
+            break;
     }
 
-    /* ------ Periodic broadcast (Runs even if WiFi is down) ------ */
-    if (millis() - _lastBroadcastMs >= BROADCAST_INTERVAL_MS) {
-        _lastBroadcastMs = millis();
+    /* ------ RTC Maintenance ------ */
+    if (_rtc) {
+        _rtc->update(_now, isConnected(), _ntpServer);
+    }
+
+    /* ------ Periodic broadcast ------ */
+    if (_now - _lastBroadcastMs >= BROADCAST_INTERVAL_MS) {
+        _lastBroadcastMs = _now;
         
-        WeatherData w = _weather.getData(); // Might return empty if no WiFi, that's fine
+        WeatherData w = _weather.getData();
         DataPacket  pkt;
         
         _buildDataPacket(pkt, w); 
@@ -196,27 +236,16 @@ void Network::update() {
 /* ========= connectWiFi ========= */
 void Network::connectWiFi() {
     if (!_hasConfig) return;
-    if (WiFi.status() == WL_CONNECTED) WiFi.disconnect();
 
     Serial.printf("[NET] Connecting to %s...\n", _ssid);
     WiFi.begin(_ssid, _password);
+    
+    _wifiState = WifiState::CONNECTING;
 
-    uint32_t start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    if (isConnected()) {
-        esp_wifi_set_ps(WIFI_PS_NONE);
-        Serial.printf("\n[NET] Connected. IP=%s Channel=%d\n",
-                      WiFi.localIP().toString().c_str(), WiFi.channel());
-        /* --- Start NTP; RTCManager polls time() to detect completion --- */
-        configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, _ntpServer);
-        Serial.printf("[NET] NTP started: %s\n", _ntpServer);
-    } else {
-        Serial.println("\n[NET] Connection failed");
-    }
+    // If we are calling this from begin(), _now might be 0. 
+    // To be safe, we can either use millis() here or ensure _now is updated.
+    _now = millis(); 
+    _connectTimeoutMs = _now;
 }
 
 /* ========= broadcastData ========= */

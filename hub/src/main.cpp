@@ -1,5 +1,5 @@
 /* ==================== main.cpp ==================== */
-/* AmbiSense Hub                                      */
+/* !!! AmbiSense Hub !!! */
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
@@ -17,6 +17,7 @@
 static Sensors    sensors;
 static RTCManager rtc;
 static Network    network;
+static Weather    weather;
 
 /* =============== INTERNAL HELPERS =============== */
 /* ============ CALLBACKS ============ */
@@ -55,6 +56,5 @@ void setup() {
 /* ========= loop ========= */
 void loop() {
     sensors.update();
-    rtc.update(network.isConnected(), network.getNTPServer());
     network.update();
 }

@@ -83,9 +83,15 @@ private:
     bool _hasConfig;
 
     /* ------ Broadcast ------ */
+    uint32_t _now;
     uint8_t  _seqCounter;
     uint32_t _lastBroadcastMs;
     uint32_t _lastReconnectAttempt;
+
+    /* ------ Wi-Fi State Machine ------ */
+    enum class WifiState { IDLE, CONNECTING, CONNECTED, WAIT_RETRY };
+    WifiState _wifiState = WifiState::IDLE;
+    uint32_t  _connectTimeoutMs = 0;
 
     /* ------ Callbacks ------ */
     OnConfigReceived _onConfig;

@@ -66,6 +66,7 @@ const int R8_PAIR_GAP  = 11;
 static const Palette DARK = {
     .bg          = 0x000000,
     .text        = 0xFFFFFF,
+    .text_invert = 0x18181B,
     .subtext     = 0xAFAFB6,
     .dim         = 0x61616B,
     .settings    = 0x878792,
@@ -82,9 +83,10 @@ static const Palette DARK = {
 
 static const Palette LIGHT = {
     .bg          = 0xF2F2F7,
-    .text        = 0x18181b,
-    .subtext     = 0x60606c,
-    .dim         = 0xafafb6,
+    .text        = 0x18181B,
+    .text_invert = 0xFFFFFF,
+    .subtext     = 0x60606C,
+    .dim         = 0xAFAFB6,
     .settings    = 0x878792,
     .red         = 0xFF2D2D,
     .deep_orange = 0xFF6333,
@@ -193,10 +195,6 @@ UI::UI()
     , _canvas(nullptr)
     , _statusDot(nullptr)
     , _btnSettings(nullptr)
-    , _tabBtnWifi(nullptr)
-    , _tabBtnSettings(nullptr)
-    , _panelWifi(nullptr)
-    , _panelSettings(nullptr)
     , _taSSID(nullptr)
     , _taPass(nullptr)
     , _taNTP(nullptr)
@@ -218,6 +216,16 @@ UI::UI()
 void UI::begin() {
     _loadPrefs();
     theme = _darkTheme ? &DARK : &LIGHT;
+
+    /* Sync the global LVGL engine theme with saved setting */
+    lv_disp_t* disp = lv_disp_get_default();
+    lv_theme_t* th = lv_theme_default_init(disp, 
+                                           lv_palette_main(LV_PALETTE_BLUE), 
+                                           lv_palette_main(LV_PALETTE_CYAN), 
+                                           _darkTheme, 
+                                           &lv_font_montserrat_14);
+    lv_disp_set_theme(disp, th);
+
     _buildDashboard();
     _buildConfig();
     Serial.println("[UI] Initialized.");
@@ -457,15 +465,15 @@ void UI::_buildDashboard() {
 
     _statusDot = lv_obj_create(_scrDashboard);
     lv_obj_remove_style_all(_statusDot);
-    lv_obj_set_size(_statusDot, 16, 16);
+    lv_obj_set_size(_statusDot, 18, 18);
     lv_obj_set_style_radius(_statusDot, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(_statusDot, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(_statusDot, lv_color_hex(theme->dim), 0);
-    lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, (-6) - 3, (6));
+    lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, (-6) - 2, (6) + 2);
 
     _btnSettings = lv_label_create(_scrDashboard);
     lv_label_set_text(_btnSettings, LV_SYMBOL_SETTINGS);
-    lv_obj_set_style_text_font(_btnSettings, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_btnSettings, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(_btnSettings, lv_color_hex(theme->settings), 0);
     lv_obj_align(_btnSettings, LV_ALIGN_BOTTOM_RIGHT, (-6) - 3, (-6) + 1);
     lv_obj_add_flag(_btnSettings, LV_OBJ_FLAG_CLICKABLE);
@@ -711,238 +719,200 @@ void UI::_buildConfig() {
     lv_obj_set_style_radius(_scrConfig, 0, 0);
     lv_obj_clear_flag(_scrConfig, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* Tab buttons */
-    _tabBtnWifi = lv_btn_create(_scrConfig);
-    lv_obj_set_pos(_tabBtnWifi, 0, 0);
-    lv_obj_set_size(_tabBtnWifi, TAB_W, TAB_H);
-    lv_obj_set_style_radius(_tabBtnWifi, 0, 0);
-    lv_obj_set_style_anim_time(_tabBtnWifi, 0, 0);
-    lv_obj_set_style_bg_color(_tabBtnWifi, lv_color_hex(theme->sky_blue), 0);
-    lv_obj_set_style_pad_all(_tabBtnWifi, 0, 0);
-    lv_obj_t* wifi_label = lv_label_create(_tabBtnWifi);
-    lv_label_set_text(wifi_label, "Wi-Fi / NTP");
-    lv_obj_set_style_text_font(wifi_label, &lv_font_montserrat_14, 0);
-    lv_obj_center(wifi_label);
+    _tabviewConfig = lv_tabview_create(_scrConfig, LV_DIR_TOP, 40);
 
-    _tabBtnSettings = lv_btn_create(_scrConfig);
-    lv_obj_set_pos(_tabBtnSettings, TAB_W, 0);
-    lv_obj_set_size(_tabBtnSettings, TAB_W, TAB_H);
-    lv_obj_set_style_radius(_tabBtnSettings, 0, 0);
-    lv_obj_set_style_anim_time(_tabBtnSettings, 0, 0);
-    lv_obj_set_style_bg_color(_tabBtnSettings, lv_color_hex(theme->dim), 0);
-    lv_obj_set_style_pad_all(_tabBtnSettings, 0, 0);
-    lv_obj_t* settings_label = lv_label_create(_tabBtnSettings);
-    lv_label_set_text(settings_label, "Settings");
-    lv_obj_set_style_text_font(settings_label, &lv_font_montserrat_14, 0);
-    lv_obj_center(settings_label);
+    /* Remove gray line and fix content offset */
+    lv_obj_set_style_bg_opa(lv_tabview_get_tab_btns(_tabviewConfig), 0, LV_PART_INDICATOR);
+    lv_obj_set_style_pad_all(lv_tabview_get_content(_tabviewConfig), 0, 0);
 
-    lv_obj_add_event_cb(_tabBtnWifi, _onTabSwitchCb, LV_EVENT_CLICKED, this);
-    lv_obj_add_event_cb(_tabBtnSettings, _onTabSwitchCb, LV_EVENT_CLICKED, this);
+    /* Disable horizontal swipe */
+    lv_obj_set_scroll_dir(lv_tabview_get_content(_tabviewConfig), LV_DIR_VER);
 
-    /* Wi-Fi panel */
-    _panelWifi = lv_obj_create(_scrConfig);
-    lv_obj_set_pos(_panelWifi, 0, TAB_H);
-    lv_obj_set_size(_panelWifi, SCR_W, SCR_H - TAB_H);
-    lv_obj_set_style_bg_color(_panelWifi, lv_color_hex(theme->bg), 0);
-    lv_obj_set_style_bg_opa(_panelWifi, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(_panelWifi, 0, 0);
-    lv_obj_set_style_pad_all(_panelWifi, 0, 0);
-    lv_obj_set_style_radius(_panelWifi, 0, 0);
-    lv_obj_set_style_clip_corner(_panelWifi, false, 0);
-    lv_obj_add_flag(_panelWifi, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    lv_obj_clear_flag(_panelWifi, LV_OBJ_FLAG_SCROLLABLE);
+    /* Theme colors for TabView parts */
+    lv_obj_set_style_bg_color(_tabviewConfig, lv_color_hex(theme->bg), 0);
+    lv_obj_t* tab_btns = lv_tabview_get_tab_btns(_tabviewConfig);
+    lv_obj_set_style_bg_color(tab_btns, lv_color_hex(theme->dim), 0);
+    lv_obj_set_style_text_color(tab_btns, lv_color_hex(theme->text), 0);
+    lv_obj_set_style_text_color(tab_btns, lv_color_hex(theme->text), LV_PART_ITEMS | LV_STATE_CHECKED);
 
-    /* Scrollable container */
-    lv_obj_t* cont = lv_obj_create(_panelWifi);
-    lv_obj_set_pos(cont, 0, 0);
-    lv_obj_set_size(cont, SCR_W, CONT_H);
-    lv_obj_set_style_radius(cont, 0, 0);
-    lv_obj_set_style_bg_color(cont, lv_color_hex(theme->bg), 0);
-    lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(cont, 0, 0);
-    lv_obj_set_style_pad_left(cont, 8, 0);
-    lv_obj_set_style_pad_right(cont, 8, 0);
-    lv_obj_set_style_pad_top(cont, 4, 0);
-    lv_obj_set_style_pad_bottom(cont, 120, 0);
-    lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(cont, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_AUTO);
+    /* Wi-Fi/NTP Tab */
+    lv_obj_t* tabWifiNtp = lv_tabview_add_tab(_tabviewConfig, "Wi-Fi / NTP");
+    lv_obj_set_scrollbar_mode(tabWifiNtp, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_add_flag(tabWifiNtp, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_set_style_pad_all(tabWifiNtp, 0, 0);
+    lv_obj_set_style_pad_bottom(tabWifiNtp, 60, 0);
+    lv_obj_set_style_bg_color(tabWifiNtp, lv_color_hex(theme->bg), 0);
 
-    auto mkLbl = [&](lv_obj_t* parent, const char* txt, int y) {
-        lv_obj_t* l = lv_label_create(parent);
-        lv_label_set_text(l, txt);
-        lv_obj_set_style_text_color(l, lv_color_hex(theme->subtext), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-        lv_obj_set_pos(l, 0, y);
-    };
-    
-    auto mkTa = [&](lv_obj_t* parent, int y, bool pw) -> lv_obj_t* {
-        lv_obj_t* ta = lv_textarea_create(parent);
-        lv_textarea_set_one_line(ta, true);
-        if (pw) lv_textarea_set_password_mode(ta, true);
-        lv_obj_set_pos(ta, 0, y);
-        lv_obj_set_size(ta, SCR_W - 16, 36);
-        lv_obj_set_style_text_font(ta, &lv_font_montserrat_14, 0);
-        lv_obj_clear_flag(ta, LV_OBJ_FLAG_SCROLLABLE);
-        return ta;
-    };
+    /* Settings Tab */
+    lv_obj_t* tabSettings = lv_tabview_add_tab(_tabviewConfig, "Settings");
+    lv_obj_set_style_bg_color(tabSettings, lv_color_hex(theme->bg), 0);
+    lv_obj_set_style_pad_all(tabSettings, 0, 0);
 
-    mkLbl(cont, "SSID:", 0);
-    _taSSID = mkTa(cont, 18, false);
+    /* SSID */
+    lv_obj_t* lblSSID = lv_label_create(tabWifiNtp);
+    lv_obj_set_pos(lblSSID, 5, 10);
+    lv_label_set_text(lblSSID, "SSID");
+    lv_obj_set_style_text_font(lblSSID, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblSSID, lv_color_hex(theme->text), 0);
+
+    _taSSID = lv_textarea_create(tabWifiNtp);
+    lv_obj_set_width(_taSSID, SCR_W - 20);
+    lv_obj_set_height(_taSSID, 35);
+    lv_obj_set_pos(_taSSID, 5, 30);
+    lv_textarea_set_one_line(_taSSID, true);
     lv_textarea_set_placeholder_text(_taSSID, "Network name");
+    lv_obj_clear_flag(_taSSID, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_text_font(_taSSID, &lv_font_montserrat_14, 0);
 
-    mkLbl(cont, "Password:", 64);
-    _taPass = mkTa(cont, 82, true);
+    /* Password */
+    lv_obj_t* lblPassword = lv_label_create(tabWifiNtp);
+    lv_obj_set_pos(lblPassword, 5, 80);
+    lv_label_set_text(lblPassword, "Password");
+    lv_obj_set_style_text_font(lblPassword, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblPassword, lv_color_hex(theme->text), 0);
+
+    _taPass = lv_textarea_create(tabWifiNtp);
+    lv_obj_set_width(_taPass, SCR_W - 20);
+    lv_obj_set_height(_taPass, 35);
+    lv_obj_set_pos(_taPass, 5, 100);
+    lv_textarea_set_one_line(_taPass, true);
+    lv_textarea_set_password_mode(_taPass, true);
     lv_textarea_set_placeholder_text(_taPass, "Password");
+    lv_obj_clear_flag(_taPass, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_text_font(_taPass, &lv_font_montserrat_14, 0);
 
-    mkLbl(cont, "NTP Server:", 128);
-    _taNTP = mkTa(cont, 146, false);
+    /* NTP Server */
+    lv_obj_t* lblNTP = lv_label_create(tabWifiNtp);
+    lv_obj_set_pos(lblNTP, 5, 150);
+    lv_label_set_text(lblNTP, "NTP Server");
+    lv_obj_set_style_text_font(lblNTP, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblNTP, lv_color_hex(theme->text), 0);
+
+    _taNTP = lv_textarea_create(tabWifiNtp);
+    lv_obj_set_width(_taNTP, SCR_W - 20);
+    lv_obj_set_height(_taNTP, 35);
+    lv_obj_set_pos(_taNTP, 5, 170);
+    lv_textarea_set_one_line(_taNTP, true);
+    lv_textarea_set_text(_taNTP, "pool.ntp.org");
     lv_textarea_set_placeholder_text(_taNTP, "NTP Server");
-    lv_textarea_set_text(_taNTP, "asia.pool.ntp.org");
+    lv_obj_clear_flag(_taNTP, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_text_font(_taNTP, &lv_font_montserrat_14, 0);
 
-    /* Buttons */
-    lv_obj_t* btnSave = lv_btn_create(_panelWifi);
-    lv_obj_set_pos(btnSave, 0, CONT_H);
-    lv_obj_set_size(btnSave, 104, BTN_H);
-    lv_obj_set_style_radius(btnSave, 0, 0);
-    lv_obj_set_style_bg_color(btnSave, lv_color_hex(theme->sky_blue), 0);
-    lv_obj_t* save_label = lv_label_create(btnSave);
-    lv_label_set_text(save_label, "Save & Send");
-    lv_obj_set_style_text_font(save_label, &lv_font_montserrat_14, 0);
-    lv_obj_center(save_label);
-    lv_obj_add_event_cb(btnSave, _onConfigSaveCb, LV_EVENT_CLICKED, this);
+    /* Theme row */
+    lv_obj_t* lblTheme = lv_label_create(tabSettings);
+    lv_obj_set_pos(lblTheme, 10, 15);
+    lv_label_set_text(lblTheme, "Theme");
+    lv_obj_set_style_text_font(lblTheme, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblTheme, lv_color_hex(theme->text), 0);
 
-    lv_obj_t* btnSync = lv_btn_create(_panelWifi);
-    lv_obj_set_pos(btnSync, 104, CONT_H);
-    lv_obj_set_size(btnSync, 112, BTN_H);
-    lv_obj_set_style_radius(btnSync, 0, 0);
-    lv_obj_set_style_bg_color(btnSync, lv_color_hex(theme->wind), 0);
-    lv_obj_t* sync_label = lv_label_create(btnSync);
-    lv_label_set_text(sync_label, "Force NTP");
-    lv_obj_set_style_text_font(sync_label, &lv_font_montserrat_14, 0);
-    lv_obj_center(sync_label);
-    lv_obj_add_event_cb(btnSync, _onForceSyncCb, LV_EVENT_CLICKED, this);
-
-    lv_obj_t* btnBackW = lv_btn_create(_panelWifi);
-    lv_obj_set_pos(btnBackW, 216, CONT_H);
-    lv_obj_set_size(btnBackW, 104, BTN_H);
-    lv_obj_set_style_radius(btnBackW, 0, 0);
-    lv_obj_set_style_bg_color(btnBackW, lv_color_hex(theme->dim), 0);
-    lv_obj_t* back_label = lv_label_create(btnBackW);
-    lv_label_set_text(back_label, LV_SYMBOL_LEFT " Back");
-    lv_obj_set_style_text_font(back_label, &lv_font_montserrat_14, 0);
-    lv_obj_center(back_label);
-    lv_obj_add_event_cb(btnBackW, _onBackBtnCb, LV_EVENT_CLICKED, this);
-
-    /* Settings panel */
-    _panelSettings = lv_obj_create(_scrConfig);
-    lv_obj_set_pos(_panelSettings, 0, TAB_H);
-    lv_obj_set_size(_panelSettings, SCR_W, SCR_H - TAB_H);
-    lv_obj_set_style_radius(_panelSettings, 0, 0);
-    lv_obj_set_style_bg_color(_panelSettings, lv_color_hex(theme->bg), 0);
-    lv_obj_set_style_bg_opa(_panelSettings, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(_panelSettings, 0, 0);
-    lv_obj_set_style_pad_all(_panelSettings, 0, 0);
-    lv_obj_clear_flag(_panelSettings, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(_panelSettings, LV_OBJ_FLAG_HIDDEN);
-
-    lv_obj_t* sp = lv_obj_create(_panelSettings);
-    lv_obj_set_pos(sp, 0, 0);
-    lv_obj_set_size(sp, SCR_W, SCR_H - TAB_H - BTN_H);
-    lv_obj_set_style_radius(sp, 0, 0);
-    lv_obj_set_style_bg_color(sp, lv_color_hex(theme->bg), 0);
-    lv_obj_set_style_bg_opa(sp, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(sp, 0, 0);
-    lv_obj_set_style_pad_all(sp, 12, 0);
-    lv_obj_clear_flag(sp, LV_OBJ_FLAG_SCROLLABLE);
-
-    auto mkRow = [&](const char* txt, int y) {
-        lv_obj_t* l = lv_label_create(sp);
-        lv_label_set_text(l, txt);
-        lv_obj_set_style_text_color(l, lv_color_hex(theme->text), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-        lv_obj_set_pos(l, 0, y + 6);
-    };
-
-    /* Theme */
-    mkRow("Theme", 0);
-    _btnTheme = lv_btn_create(sp);
-    lv_obj_set_pos(_btnTheme, SCR_W - 24 - 90, 0);
-    lv_obj_set_size(_btnTheme, 90, 30);
+    _btnTheme = lv_btn_create(tabSettings);
+    lv_obj_set_width(_btnTheme, 90);
+    lv_obj_set_height(_btnTheme, 32);
+    lv_obj_set_pos(_btnTheme, SCR_W - 100, 8);
     lv_obj_set_style_bg_color(_btnTheme, lv_color_hex(theme->dim), 0);
     _lblTheme = lv_label_create(_btnTheme);
     lv_label_set_text(_lblTheme, _darkTheme ? "Dark" : "Light");
     lv_obj_set_style_text_font(_lblTheme, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_bg_color(_btnTheme, lv_color_hex(theme->dim), 0);
+    lv_obj_set_style_text_color(_lblTheme, lv_color_hex(theme->text), 0);
     lv_obj_center(_lblTheme);
     lv_obj_add_event_cb(_btnTheme, _onThemeBtnCb, LV_EVENT_CLICKED, this);
 
-    /* Show seconds */
-    mkRow("Show seconds", 44);
-    _swSeconds = lv_switch_create(sp);
-    lv_obj_set_pos(_swSeconds, SCR_W - 24 - 50, 44);
-    lv_obj_set_size(_swSeconds, 50, 26);
+    /* Show seconds row */
+    lv_obj_t* lblSeconds = lv_label_create(tabSettings);
+    lv_obj_set_pos(lblSeconds, 10, 60);
+    lv_label_set_text(lblSeconds, "Show seconds");
+    lv_obj_set_style_text_font(lblSeconds, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblSeconds, lv_color_hex(theme->text), 0);
+
+    _swSeconds = lv_switch_create(tabSettings);
+    lv_obj_set_pos(_swSeconds, SCR_W - 60, 55);
+    lv_obj_set_width(_swSeconds, 50);
+    lv_obj_set_height(_swSeconds, 26);
     if (_showSeconds) lv_obj_add_state(_swSeconds, LV_STATE_CHECKED);
     lv_obj_add_event_cb(_swSeconds, _onSecondsSwitchCb, LV_EVENT_VALUE_CHANGED, this);
 
-    /* Date format */
-    mkRow("Date format", 88);
-    _ddDateFmt = lv_dropdown_create(sp);
-    lv_dropdown_set_options(_ddDateFmt, "12 Mar 2026\n12/03/2026");
-    lv_dropdown_set_selected(_ddDateFmt, _dateFmt == DateFormat::TEXT ? 0 : 1);
-    lv_obj_set_pos(_ddDateFmt, SCR_W - 24 - 130, 83);
+    /* Date format row */
+    lv_obj_t* lblDateFmt = lv_label_create(tabSettings);
+    lv_obj_set_pos(lblDateFmt, 10, 105);
+    lv_label_set_text(lblDateFmt, "Date format");
+    lv_obj_set_style_text_font(lblDateFmt, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblDateFmt, lv_color_hex(theme->text), 0);
+
+    _ddDateFmt = lv_dropdown_create(tabSettings);
+    lv_dropdown_set_options(_ddDateFmt, "07 Mar 2024\n07/03/2024");
     lv_obj_set_width(_ddDateFmt, 130);
+    lv_obj_set_height(_ddDateFmt, 36);
+    lv_obj_set_pos(_ddDateFmt, SCR_W - 140, 98);
+    lv_dropdown_set_selected(_ddDateFmt, _dateFmt == DateFormat::TEXT ? 0 : 1);
     lv_obj_set_style_text_font(_ddDateFmt, &lv_font_montserrat_14, 0);
     lv_obj_add_event_cb(_ddDateFmt, _onDateFmtDropdownCb, LV_EVENT_VALUE_CHANGED, this);
 
-    /* Back button */
-    lv_obj_t* btnBackS = lv_btn_create(_panelSettings);
-    lv_obj_set_pos(btnBackS, SCR_W - 104, SCR_H - TAB_H - BTN_H);
-    lv_obj_set_size(btnBackS, 104, BTN_H);
-    lv_obj_set_style_radius(btnBackS, 0, 0);
-    lv_obj_set_style_bg_color(btnBackS, lv_color_hex(theme->dim), 0);
-    lv_obj_t* back_label_s = lv_label_create(btnBackS);
-    lv_label_set_text(back_label_s, LV_SYMBOL_LEFT " Back");
-    lv_obj_set_style_text_font(back_label_s, &lv_font_montserrat_14, 0);
-    lv_obj_center(back_label_s);
-    lv_obj_add_event_cb(btnBackS, _onBackBtnCb, LV_EVENT_CLICKED, this);
+    /* Button container (outside tabview) */
+    lv_obj_t* contButtons = lv_obj_create(_scrConfig);
+    lv_obj_remove_style_all(contButtons);
+    lv_obj_set_width(contButtons, SCR_W);
+    lv_obj_set_height(contButtons, 54);
+    lv_obj_set_pos(contButtons, 0, SCR_H - 54);
+    lv_obj_clear_flag(contButtons, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
-    /* Keyboard */
-    _kbConfig = lv_keyboard_create(_panelWifi);
+    /* Save button */
+    lv_obj_t* btnSave = lv_btn_create(contButtons);
+    lv_obj_set_width(btnSave, 100);
+    lv_obj_set_height(btnSave, 36);
+    lv_obj_set_pos(btnSave, 5, 9);
+    lv_obj_set_style_bg_color(btnSave, lv_color_hex(theme->sky_blue), 0);
+    lv_obj_t* saveLabel = lv_label_create(btnSave);
+    lv_label_set_text(saveLabel, "Save & Send");
+    lv_obj_set_style_text_font(saveLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(saveLabel);
+    lv_obj_add_event_cb(btnSave, _onConfigSaveCb, LV_EVENT_CLICKED, this);
+
+    /* Sync NTP button */
+    lv_obj_t* btnSyncNtp = lv_btn_create(contButtons);
+    lv_obj_set_width(btnSyncNtp, 100);
+    lv_obj_set_height(btnSyncNtp, 36);
+    lv_obj_set_pos(btnSyncNtp, 109, 9);
+    lv_obj_set_style_bg_color(btnSyncNtp, lv_color_hex(theme->wind), 0);
+    lv_obj_t* syncLabel = lv_label_create(btnSyncNtp);
+    lv_label_set_text(syncLabel, "Sync NTP");
+    lv_obj_set_style_text_font(syncLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(syncLabel);
+    lv_obj_add_event_cb(btnSyncNtp, _onForceSyncCb, LV_EVENT_CLICKED, this);
+
+    /* Back button */
+    lv_obj_t* btnBackW = lv_btn_create(contButtons);
+    lv_obj_set_width(btnBackW, 100);
+    lv_obj_set_height(btnBackW, 36);
+    lv_obj_set_pos(btnBackW, SCR_W - 107, 9);
+    lv_obj_set_style_bg_color(btnBackW, lv_color_hex(theme->dim), 0);
+    lv_obj_t* backLabel = lv_label_create(btnBackW);
+    lv_label_set_text(backLabel, LV_SYMBOL_LEFT " Back");
+    lv_obj_set_style_text_font(backLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(backLabel);
+    lv_obj_add_event_cb(btnBackW, _onBackBtnCb, LV_EVENT_CLICKED, this);
+
+    /* Keyboard Setup */
+    _kbConfig = lv_keyboard_create(_scrConfig);
     lv_obj_set_size(_kbConfig, SCR_W, KB_H);
     lv_obj_align(_kbConfig, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(_kbConfig, LV_OBJ_FLAG_HIDDEN);
+    
+    /* Attach the hide logic */
+    lv_obj_add_event_cb(_kbConfig, _onKbEvent, LV_EVENT_ALL, NULL);
 
-    lv_obj_add_event_cb(_taSSID, _onTaEvent, LV_EVENT_ALL, _kbConfig);
-    lv_obj_add_event_cb(_taPass, _onTaEvent, LV_EVENT_ALL, _kbConfig);
-    lv_obj_add_event_cb(_taNTP,  _onTaEvent, LV_EVENT_ALL, _kbConfig);
+    /* STOP internal auto-scrolling to prevent the overshoot conflict */
+    lv_obj_t* tas[] = {_taSSID, _taPass, _taNTP};
+    for(int i = 0; i < 3; i++) {
+        lv_obj_clear_flag(tas[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+        lv_obj_add_event_cb(tas[i], _onTaEvent, LV_EVENT_ALL, _kbConfig);
+    }
 }
 
 /* =============== STATIC CALLBACKS =============== */
 void UI::_onSettingsBtnCb(lv_event_t* e) {
     UI* ui = (UI*)lv_event_get_user_data(e);
     ui->showScreen(Screen::CONFIG);
-}
-
-void UI::_onTabSwitchCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    bool isWifi = (lv_event_get_target(e) == ui->_tabBtnWifi);
-
-    if (ui->_kbConfig) {
-        lv_keyboard_set_textarea(ui->_kbConfig, nullptr);
-        lv_obj_add_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    if (isWifi) {
-        lv_obj_clear_flag(ui->_panelWifi, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ui->_panelSettings, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(ui->_tabBtnWifi, lv_color_hex(ui->theme->sky_blue), 0);
-        lv_obj_set_style_bg_color(ui->_tabBtnSettings, lv_color_hex(ui->theme->dim), 0);
-    } else {
-        lv_obj_add_flag(ui->_panelWifi, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(ui->_panelSettings, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(ui->_tabBtnWifi, lv_color_hex(ui->theme->dim), 0);
-        lv_obj_set_style_bg_color(ui->_tabBtnSettings, lv_color_hex(ui->theme->sky_blue), 0);
-    }
 }
 
 void UI::_onBackBtnCb(lv_event_t* e) {
@@ -952,20 +922,40 @@ void UI::_onBackBtnCb(lv_event_t* e) {
 
 void UI::_onThemeBtnCb(lv_event_t* e) {
     UI* ui = (UI*)lv_event_get_user_data(e);
+
+    // Remember which tab the user was on
+    uint16_t activeTab = lv_tabview_get_tab_act(ui->_tabviewConfig);
+
+    // Toggle the theme values
     ui->_darkTheme = !ui->_darkTheme;
     UI::theme = ui->_darkTheme ? &DARK : &LIGHT;
     ui->_savePrefs();
 
-    if (ui->_scrDashboard) lv_obj_del(ui->_scrDashboard);
+    /* Tell LVGL to switch its internal default theme */
+    lv_disp_t* display = lv_disp_get_default();
+    lv_theme_t* th = lv_theme_default_init(display, 
+                                           lv_palette_main(LV_PALETTE_BLUE), 
+                                           lv_palette_main(LV_PALETTE_RED), 
+                                           ui->_darkTheme, 
+                                           &lv_font_montserrat_14);
+    lv_disp_set_theme(display, th);
+
+    // Keep pointers to old screens so we can delete them safely later
+    lv_obj_t* oldDash = ui->_scrDashboard;
+    lv_obj_t* oldConfig = ui->_scrConfig;
+
+    // Rebuild the screens (these functions will now use the new UI::theme)
     ui->_buildDashboard();
-    if (ui->_scrConfig) lv_obj_del(ui->_scrConfig);
     ui->_buildConfig();
 
-    lv_obj_add_flag(ui->_panelWifi, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_clear_flag(ui->_panelSettings, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_style_bg_color(ui->_tabBtnWifi, lv_color_hex(UI::theme->dim), 0);
-    lv_obj_set_style_bg_color(ui->_tabBtnSettings, lv_color_hex(UI::theme->sky_blue), 0);
+    // Restore the active tab and load the screen
+    lv_tabview_set_act(ui->_tabviewConfig, activeTab, LV_ANIM_OFF);
     lv_scr_load(ui->_scrConfig);
+    ui->_currentScreen = Screen::CONFIG;
+
+    // FIXED: Delete the old screens ASYNCHRONOUSLY to prevent the crash
+    if (oldDash) lv_obj_del_async(oldDash);
+    if (oldConfig) lv_obj_del_async(oldConfig);
 }
 
 void UI::_onSecondsSwitchCb(lv_event_t* e) {
@@ -1001,13 +991,34 @@ void UI::_onTaEvent(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t* ta = lv_event_get_target(e);
     lv_obj_t* kb = (lv_obj_t*)lv_event_get_user_data(e);
-    if (!kb) return;
-    
+    UI* ui = UI::_instance;
+
     if (code == LV_EVENT_FOCUSED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
-    } else if (code == LV_EVENT_DEFOCUSED) {
-        lv_keyboard_set_textarea(kb, nullptr);
+        
+        lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 130, 0);
+        lv_obj_update_layout(ui->_tabviewConfig);
+        lv_obj_scroll_to_view(ta, LV_ANIM_ON);
+    } 
+    else if (code == LV_EVENT_DEFOCUSED) {
+        lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 0, 0);
+        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void UI::_onKbEvent(lv_event_t* e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t* kb = lv_event_get_target(e);
+
+    if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+        lv_obj_t* ta = lv_keyboard_get_textarea(kb);
+        if (ta) {
+            /* Reset the runway on the tab */
+            lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 60, 0);
+            /* Hide the cursor */
+            lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+        }
         lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
     }
 }

@@ -11,15 +11,21 @@
 #define DEBUG_GEO 0
 
 /* ===== TIME ===== */
-constexpr long     GMT_OFFSET_SEC         = 7 * 3600;   // UTC+7
-constexpr int32_t  DAYLIGHT_OFFSET_SEC    = 0;          // No DST
-constexpr int32_t  TARGET_SYNC_HOUR       = 12;
-constexpr int32_t  TARGET_SYNC_MINUTE     = 0;
+constexpr long     GMT_OFFSET_SEC            = 7 * 3600;   // UTC+7
+constexpr int32_t  DAYLIGHT_OFFSET_SEC       = 0;          // No DST
+constexpr int32_t  TARGET_SYNC_HOUR          = 12;
+constexpr int32_t  TARGET_SYNC_MINUTE        = 0;
+constexpr int32_t  NTP_SYNC_TIMEOUT_DELAY_MS = 10000;
+constexpr int32_t  NTP_SYNC_MAX_RETRIES      = 6;
 
 /* ===== WEATHER ===== */
 constexpr uint32_t WEATHER_INTERVAL_MS      = 30 * 60 * 1000;   // 30 minutes
 constexpr uint32_t WEATHER_RETRY_DELAY_MS   = 2000;             // Initial backoff: 2s
 constexpr uint8_t  WEATHER_MAX_RETRIES      = 3;
+
+/* ===== LOCATION ===== */
+constexpr uint32_t LOCATION_RETRY_INTERVAL_MS = 5000;
+constexpr uint32_t LOCATION_MAX_RETRIES       = 10;
 
 /* ===== INTERVALS ===== */
 constexpr uint32_t DHT_INTERVAL_MS        = 2000;   // DHT22 min reliable interval

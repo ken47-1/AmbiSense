@@ -27,32 +27,31 @@ void RTCManager::begin() {
         Serial.println("[RTC] DS3231 not found");
         return;
     }
-    if (_rtc.lostPower()) Serial.println("[RTC] Lost power — time may be stale");
+    if (_rtc.lostPower()) Serial.println("[RTC] Power lost");
     _running = true;
-    Serial.println("[RTC] DS3231 ready");
+    Serial.println("[RTC] DS3231 INIT");
 }
 
 /* ========= update ========= */
-void RTCManager::update(bool wifiConnected, const char* ntpServer) {
+void RTCManager::update(uint32_t nowMs, bool wifiConnected, const char* ntpServer) {
     if (!_running) return;
-    if (millis() - _lastSyncCheck < SYNC_CHECK_INTERVAL_MS) return;
-    _lastSyncCheck = millis();
+    
+    // Use the passed-in snapshot instead of calling millis() again
+    if (nowMs - _lastSyncCheck < SYNC_CHECK_INTERVAL_MS) return;
+    _lastSyncCheck = nowMs;
 
-    /* ------ Handle in-progress sync ------ */
     if (_syncInProgress) {
-        time_t now = time(nullptr);
-        if (now > 1000000000UL) {
-            /* NTP responded with a valid time */
+        time_t sysTime = time(nullptr);
+        if (sysTime > 1000000000UL) { // Valid Unix timestamp check
             _finishSync();
-        } else if (millis() - _syncStarted > 10000) {
-            /* Timeout */
+        } else if (nowMs - _syncStarted > NTP_SYNC_TIMEOUT_DELAY_MS) {
             _ntpStatus.retries++;
             _syncInProgress = false;
-            if (_ntpStatus.retries >= 5) {
+            if (_ntpStatus.retries >= NTP_SYNC_MAX_RETRIES) {
                 _ntpStatus.state = SyncState::FAILED;
-                Serial.println("[RTC] NTP sync failed after 5 retries");
+                Serial.printf("[RTC] NTP sync failed after %d retries", NTP_SYNC_MAX_RETRIES);
             } else {
-                Serial.printf("[RTC] NTP timeout, retry %d/5\n", _ntpStatus.retries);
+                Serial.printf("[RTC] NTP timeout, retry %d/%d\n", _ntpStatus.retries, NTP_SYNC_MAX_RETRIES);
             }
         }
         return;
@@ -60,14 +59,14 @@ void RTCManager::update(bool wifiConnected, const char* ntpServer) {
 
     if (!wifiConnected || ntpServer == nullptr) return;
 
-    /* ------ Daily sync at TARGET_SYNC_HOUR ------ */
+    /* ------ Daily sync at TARGET_SYNC_HOUR/TARGET_SYNC_MINUTE ------ */
     DateTime now      = _rtc.now();
-    bool shouldSync   = (now.hour()  == TARGET_SYNC_HOUR   &&
+    bool shouldSync   = (now.hour()   == TARGET_SYNC_HOUR   &&
                          now.minute() == TARGET_SYNC_MINUTE &&
-                         now.day()   != _lastSyncDay);
+                         now.day()    != _lastSyncDay);
 
     /* --- Also sync on first boot --- */
-    // if (!_ntpStatus.everSynced && _ntpStatus.state != SyncState::FAILED) shouldSync = true;
+    if (!_ntpStatus.everSynced && _ntpStatus.state != SyncState::FAILED) shouldSync = true;
 
     if (shouldSync) _startSync(ntpServer);
 }
@@ -91,21 +90,25 @@ void RTCManager::_startSync(const char* ntpServer) {
 
 /* ------ _finishSync ------ */
 void RTCManager::_finishSync() {
-    time_t     now = time(nullptr);
-    struct tm* ti  = localtime(&now);
-
+    time_t now = time(nullptr);  // This is already UTC
+    struct tm* ti = gmtime(&now);  // Use gmtime, NOT localtime
+    
     _rtc.adjust(DateTime(
         ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday,
         ti->tm_hour, ti->tm_min, ti->tm_sec
     ));
-
-    _lastSyncDay            = _rtc.now().day();
-    _syncInProgress         = false;
-    _ntpStatus.state        = SyncState::DONE;
-    _ntpStatus.everSynced   = true;
-    _ntpStatus.retries      = 0;
-
-    Serial.printf("[RTC] NTP sync done: %04d-%02d-%02d %02d:%02d:%02d\n",
+    
+    _lastSyncDay = _rtc.now().day();
+    _syncInProgress = false;
+    _ntpStatus.state = SyncState::DONE;
+    _ntpStatus.everSynced = true;
+    _ntpStatus.retries = 0;
+    
+    // For display/debug, convert to local
+    struct tm* local_ti = localtime(&now);
+    Serial.printf("[RTC] NTP sync done (UTC): %04d-%02d-%02d %02d:%02d:%02d\n",
                   ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday,
                   ti->tm_hour, ti->tm_min, ti->tm_sec);
+    Serial.printf("[RTC] Local time: %02d:%02d:%02d\n",
+                  local_ti->tm_hour, local_ti->tm_min, local_ti->tm_sec);
 }

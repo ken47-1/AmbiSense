@@ -22,6 +22,7 @@ enum class DateFormat { TEXT, NUMERIC };
 struct Palette {
     uint32_t bg;
     uint32_t text;
+    uint32_t text_invert;
     uint32_t subtext;
     uint32_t dim;
     uint32_t settings;
@@ -101,10 +102,7 @@ private:
     lv_obj_t* _canvas;
     lv_obj_t* _statusDot;
     lv_obj_t* _btnSettings;
-    lv_obj_t* _tabBtnWifi;
-    lv_obj_t* _tabBtnSettings;
-    lv_obj_t* _panelWifi;
-    lv_obj_t* _panelSettings;
+    lv_obj_t* _tabviewConfig; // new
     lv_obj_t* _taSSID;
     lv_obj_t* _taPass;
     lv_obj_t* _taNTP;
@@ -138,4 +136,5 @@ private:
     static void _onForceSyncCb(lv_event_t* e);
     static void _onBackBtnCb(lv_event_t* e);
     static void _onTaEvent(lv_event_t* e);
+    static void _onKbEvent(lv_event_t* e);
 };
