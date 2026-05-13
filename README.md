@@ -1,6 +1,7 @@
 # AmbiSense
 
-![AmbiSense Display and Hub](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260504_163154.jpg?raw=true)
+![AmbiSense Display](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260514_014947.jpg?raw=true)
+![AmbiSense Hub](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260514_015018.jpg?raw=true)
 
 Real-time ambient weather and room sensor display. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates, and broadcasts to ESP32-2432S028 Display over ESP-NOW. Dashboard shows temperature, humidity, pressure, wind, sunrise/sunset, plus local room metrics from DHT22. Theme toggle, optional seconds display, configurable date format. Auto-centering UI ensures perfect alignment even when values change length.
 
@@ -30,9 +31,20 @@ pio device monitor -b 115200
 Expected output:
 ```
 [MAIN] AmbiSense Hub booting...
-[NET] ESP-NOW ready
-[NET] Connected. IP=192.168.x.x
-[GEO] Location: Bangkok
+[RTC] DS3231 INIT
+[GEO] LocationResolver INIT
+[NET] ESP-NOW INIT
+[NET] Config loaded: SSID: YOUR_SSID_HERE NTP: asia.pool.ntp.org
+[NET] Connecting to YOUR_SSID_HERE...
+[MAIN] Boot complete.
+
+[NET] Connected to IP: 192.168.x.xxx
+[RTC] NTP sync starting...
+[RTC] NTP sync done (UTC): 2026-05-14 01:52:11
+[RTC] Local time: 01:52:11
+[GEO] Location resolved: New York
+[WEATHER] HTTP code: 200 (attempt 1/3)
+[WEATHER] Data fetched successfully
 ```
 
 **Note:** First boot uses placeholder credentials (`YOUR_SSID_HERE`). Configure real credentials via Display settings screen.
@@ -48,8 +60,15 @@ pio device monitor -b 115200
 Expected output:
 ```
 [MAIN] AmbiSense Display booting...
+[DISP] DisplayManager initialized.
+[NET] Scanning on ALL Channels...
+[NET] ESP-NOW INIT
 [UI] Dashboard built.
-[NET] ESP-NOW ready
+[UI] Initialized.
+[MAIN] Boot complete.
+[NET] LOCKED to Hub Channel: 4
+[NET] Connection Restored in 3180ms on Channel 4
+[NET] Hub MAC learned
 ```
 
 Both auto-discover over ESP-NOW. Display locks to Hub's Wi-Fi channel automatically.
@@ -73,19 +92,36 @@ Bottom-right status dot indicates connection:
 
 ### Settings
 
-Tap **⚙️** (top-right) to configure:
+Tap **⚙️** (bottom-right) to configure:
 
 **Wi-Fi/NTP Tab**
 - Update Hub Wi-Fi credentials
-- Set NTP server (default: `asia.pool.ntp.org`)
+- Set NTP server (default: `pool.ntp.org`)
 - Force NTP sync (corrects RTC time)
 
 **Settings Tab**
-- Dark/Light theme (saved)
+- Dark/Light theme (saved, persists across reboots)
 - Show/Hide seconds (saved)
-- Date format: Text (12 Mar 2026) or Numeric (12/03/2026) (saved)
+- Date format: Text (07 Mar 2024) or Numeric (07/03/2024) (saved)
 
 All changes persist across power cycles.
+
+## UI Features
+
+### TabView Configuration Screen
+- Clean tab bar with active/inactive color states (gray indicator line removed)
+- Horizontal swipe disabled to prevent accidental tab switching
+- Vertical scrolling preserved for content overflow
+- Keyboard popup with dynamic bottom padding — text fields automatically scroll into view
+
+### Theme Switching
+- Dark/Light themes with full UI reconstruction
+- Active tab restored after theme change
+- Synchronized with LVGL engine defaults for textareas and switches
+- Asynchronous screen deletion prevents crash on rebuild
+
+### Dashboard Auto-Centering
+Every UI row recalculates position on each update using actual text widths and empirically-determined gaps (measured in Paint). Ensures perfect centering even when values change length (e.g., "25.0°C" → "26.3°C").
 
 ## Offline Behavior
 
@@ -110,11 +146,11 @@ Hub offline detection uses packet timestamp:
 ### Hub (`hub/include/config/LocationConfig.h`)
 
 ```cpp
-constexpr float LOCATION_LAT = 13.736717;   // Your latitude
-constexpr float LOCATION_LON = 100.523186;  // Your longitude
+constexpr float LOCATION_LAT = 40.6972846;   // Your latitude
+constexpr float LOCATION_LON = -74.1443122;  // Your longitude
 ```
 
-Hub automatically resolves city name via OpenStreetMap Nominatim (no API key).
+Hub automatically resolves city name via OpenStreetMap Nominatim (no API key). Retry logic with configurable interval and max attempts.
 
 ### Display (`display/include/config/HardwareConfig.h`)
 
@@ -125,19 +161,16 @@ Hub automatically resolves city name via OpenStreetMap Nominatim (no API key).
 ## Architecture
 
 **Hub Modules**
-- `Network` — Wi-Fi, ESP-NOW broadcast, NVS config
+- `Network` — Non-blocking WiFi state machine, ESP-NOW broadcast, NVS config
 - `Weather` — Open-Meteo API (FreeRTOS task, 30min refresh)
-- `LocationResolver` — Nominatim reverse geocoding (once at boot)
+- `LocationResolver` — Nominatim reverse geocoding with retry logic (non-blocking)
 - `Sensors` — DHT22 polling (2s)
-- `RTCManager` — DS3231 + NTP sync
+- `RTCManager` — DS3231 + NTP sync (UTC storage, gmtime)
 
 **Display Modules**
 - `Network` — ESP-NOW RX, channel sync, offline detection
-- `UI` — LVGL dashboard with auto-centering, dual themes
+- `UI` — LVGL dashboard with auto-centering, TabView config screen, dual themes
 - `DisplayManager` — LVGL init, touch handling, frame control
-
-**Auto-Centering**
-Every UI row recalculates position on each update using actual text widths and empirically-determined gaps (measured in Paint). Ensures perfect centering even when values change length (e.g., "25.0°C" → "26.3°C").
 
 **Packet Structure** (`DataPacket`, ~100 bytes)
 - Location: city name, validity flag
@@ -154,9 +187,11 @@ See `ARCHITECTURE.md` for complete protocol details.
 | Display shows offline (red dot) | Check Hub power and serial output; both on same 2.4GHz band |
 | Weather not updating | Verify Hub Wi-Fi; check Open-Meteo API in serial logs |
 | Time incorrect | Hub needs NTP sync (check serial); verify timezone in Config.h |
-| City shows "Unknown" | Check LOCATION_LAT/LON; Hub needs internet at boot |
+| City shows "Unknown" | Check LOCATION_LAT/LON; Hub needs internet at boot; wait for retry |
 | UI elements misaligned | Auto-centering handles this; update gap values if needed |
 | Config not saving | NVS may need erase: `pio run -t erase` |
+| Keyboard covers text fields | Dynamic padding should handle this; if not, check `_onTaEvent` callback |
+| Theme switch crashes | Should be fixed with async deletion; update if still occurs |
 
 ## Performance
 
@@ -182,6 +217,7 @@ See `ARCHITECTURE.md` for complete protocol details.
 **Weather interval**: Change `WEATHER_INTERVAL_MS`
 **Theme colors**: Modify `DARK` / `LIGHT` palettes in `UI.cpp`
 **Location**: Update `LOCATION_LAT` / `LOCATION_LON` in `LocationConfig.h`
+**TabView height**: Change second parameter in `lv_tabview_create(..., 40)` (currently 40px)
 
 Credentials load from NVS at runtime — no hardcoding needed after first config via Display settings.
 

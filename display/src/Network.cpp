@@ -157,7 +157,7 @@ void Network::begin() {
     if (!esp_now_is_peer_exist(ESPNOW_BROADCAST)) esp_now_add_peer(&peer);
 
     loadConfig();
-    Serial.println("[NET] ESP-NOW ready");
+    Serial.println("[NET] ESP-NOW INIT");
 }
 
 /* ========= update ========= */
