@@ -1,34 +1,32 @@
-/* ========== Weather.h ========== */
+/* ==================== Weather.h ==================== */
 #pragma once
 
-/* --- THIRD-PARTY --- */
+/* =============== INCLUDES =============== */
+/* ============ THIRD-PARTY ============ */
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
 
-/* --- CORE --- */
+/* ============ CORE ============ */
 #include <Arduino.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
 #include "freertos/semphr.h"
 
+/* =============== TYPES =============== */
+/* ============ STRUCTS ============ */
 struct WeatherData {
     bool    valid;
-    
     uint8_t weatherCode;
     float   temp;
-    
     float   apparentTemp;
     int     humidity;
-    
     int     pressure;
-
     float   windSpeed;
     int     windDirection;
-    char    sunrise[8];   // "HH:MM"
-    char    sunset[8];    // "HH:MM"
-    
+    char    sunrise[8];
+    char    sunset[8];
 };
 
-
+/* =============== API =============== */
 class Weather {
 public:
     Weather();

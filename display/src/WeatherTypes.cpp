@@ -1,7 +1,7 @@
 /* ==================== WeatherTypes.cpp ==================== */
 #include "WeatherTypes.h"
 
-/* ====================DATA =============== */
+/* =============== DATA =============== */
 // NOTES ARE PARTLY COPIED FROM
 // https://www.nodc.noaa.gov/archive/arc0021/0002199/1.1/data/0-data/HTML/WMO-CODE/WMO4677.HTM
 static constexpr WeatherInfo WEATHER_TABLE[] = {

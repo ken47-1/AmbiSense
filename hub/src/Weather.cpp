@@ -1,12 +1,13 @@
-/* ========== Weather.cpp ========== */
+/* ==================== Weather.cpp ==================== */
 #include "Weather.h"
 
-/* ===== INCLUDES ===== */
-/* --- PROJECT --- */
+/* =============== INCLUDES =============== */
+/* ============ PROJECT ============ */
 #include "config/Config.h"
 #include "config/LocationConfig.h"
 
-/* Constructor */
+/* =============== PUBLIC API =============== */
+/* ============ LIFECYCLE ============ */
 Weather::Weather() {
     _mutex = xSemaphoreCreateMutex();
 
@@ -17,31 +18,6 @@ Weather::Weather() {
     strlcpy(_data.sunset, "--:--", sizeof(_data.sunset));
 }
 
-/* ===== HELPERS ===== */
-void Weather::task_entry(void* arg) {
-    Weather* self = static_cast<Weather*>(arg);
-
-    bool wifiWasConnected = false;
-
-    while (true) {
-        bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-
-        if (wifiConnected) {
-            if (!wifiWasConnected) {
-                wifiWasConnected = true;
-                self->_fetch(); // immediate fetch on connect
-            } else {
-                vTaskDelay(pdMS_TO_TICKS(WEATHER_INTERVAL_MS));
-                self->_fetch(); // periodic refresh
-            }
-        } else {
-            wifiWasConnected = false;
-            vTaskDelay(pdMS_TO_TICKS(5000)); // check again in 5s
-        }
-    }
-}
-
-/* ===== PUBLIC API ===== */
 void Weather::begin() {
     xTaskCreatePinnedToCore(
         task_entry,
@@ -54,12 +30,6 @@ void Weather::begin() {
     );
 }
 
-void Weather::forceFetch() {
-    if (WiFi.status() == WL_CONNECTED) {
-        _fetch();
-    }
-}
-
 WeatherData Weather::getData() {
     WeatherData copy;
 
@@ -69,6 +39,38 @@ WeatherData Weather::getData() {
     }
 
     return copy;
+}
+
+/* ============ ACTIONS ============ */
+void Weather::forceFetch() {
+    if (WiFi.status() == WL_CONNECTED) {
+        _fetch();
+    }
+}
+
+/* =============== INTERNAL HELPERS =============== */
+/* ============ LOGIC ============ */
+void Weather::task_entry(void* arg) {
+    Weather* self = static_cast<Weather*>(arg);
+
+    bool wifiWasConnected = false;
+
+    while (true) {
+        bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+
+        if (wifiConnected) {
+            if (!wifiWasConnected) {
+                wifiWasConnected = true;
+                self->_fetch();
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(WEATHER_INTERVAL_MS));
+                self->_fetch();
+            }
+        } else {
+            wifiWasConnected = false;
+            vTaskDelay(pdMS_TO_TICKS(5000));
+        }
+    }
 }
 
 void Weather::_fetch() {

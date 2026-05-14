@@ -1,104 +1,101 @@
-/* ========== Config.h ========== */
+/* ==================== Config.h ==================== */
 /* Shared protocol definitions between the AmbiSense Hub and Display */
 #pragma once
 
-/* ===== INCLUDES ===== */
-/* --- CORE --- */
+/* =============== INCLUDES =============== */
+/* ============ CORE ============ */
 #include <stdint.h>
 
-/* ===== DEBUG ===== */
-#define DEBUG_NET 0
-#define DEBUG_GEO 0
+/* =============== DEBUG =============== */
+#define DEBUG_NETWORK 0
+#define DEBUG_GEO     0
 
-/* ===== TIME ===== */
-constexpr long     GMT_OFFSET_SEC            = 7 * 3600;   // UTC+7
-constexpr int32_t  DAYLIGHT_OFFSET_SEC       = 0;          // No DST
-constexpr int32_t  TARGET_SYNC_HOUR          = 12;
-constexpr int32_t  TARGET_SYNC_MINUTE        = 0;
-constexpr int32_t  NTP_SYNC_TIMEOUT_DELAY_MS = 10000;
-constexpr int32_t  NTP_SYNC_MAX_RETRIES      = 6;
+/* =============== TIME =============== */
+constexpr long     GMT_OFFSET_SEC            = 7 * 3600;        // UTC+7
+constexpr int32_t  DAYLIGHT_OFFSET_SEC       = 0;               // No DST
+constexpr int32_t  TARGET_SYNC_HOUR          = 12;              // Daily NTP sync hour
+constexpr int32_t  TARGET_SYNC_MINUTE        = 0;               // Daily NTP sync minute
+constexpr int32_t  NTP_SYNC_TIMEOUT_DELAY_MS = 10000;           // Per-attempt timeout
+constexpr int32_t  NTP_SYNC_MAX_RETRIES      = 6;               // Max sync attempts
 
-/* ===== WEATHER ===== */
-constexpr uint32_t WEATHER_INTERVAL_MS      = 30 * 60 * 1000;   // 30 minutes
-constexpr uint32_t WEATHER_RETRY_DELAY_MS   = 2000;             // Initial backoff: 2s
-constexpr uint8_t  WEATHER_MAX_RETRIES      = 3;
+/* =============== WEATHER =============== */
+constexpr uint32_t WEATHER_INTERVAL_MS      = 30 * 60 * 1000;   // Fetch interval
+constexpr uint32_t WEATHER_RETRY_DELAY_MS   = 2000;             // Retry backoff base
+constexpr uint8_t  WEATHER_MAX_RETRIES      = 3;                // Max fetch retries
 
-/* ===== LOCATION ===== */
-constexpr uint32_t LOCATION_RETRY_INTERVAL_MS = 5000;
-constexpr uint32_t LOCATION_MAX_RETRIES       = 10;
+/* =============== LOCATION =============== */
+constexpr uint32_t LOCATION_RETRY_INTERVAL_MS = 5000;           // Retry interval
+constexpr uint32_t LOCATION_MAX_RETRIES       = 10;             // Max retries
 
-/* ===== INTERVALS ===== */
-constexpr uint32_t DHT_INTERVAL_MS        = 2000;   // DHT22 min reliable interval
-constexpr uint32_t BROADCAST_INTERVAL_MS  = 250;    // ESP-NOW broadcast rate
-constexpr uint32_t SCAN_HOP_INTERVAL_MS   = 1000;   // Channel hopping interval
-constexpr uint32_t SYNC_CHECK_INTERVAL_MS = 1000;
+/* =============== INTERVALS =============== */
+constexpr uint32_t DHT_INTERVAL_MS        = 2000;               // DHT22 poll rate
+constexpr uint32_t BROADCAST_INTERVAL_MS  = 250;                // ESP-NOW rate
+constexpr uint32_t SCAN_HOP_INTERVAL_MS   = 1000;               // Channel scan rate
+constexpr uint32_t SYNC_CHECK_INTERVAL_MS = 1000;               // RTC sync check rate
 
-/* ===== ESP-NOW ===== */
+/* =============== TIMEOUTS =============== */
+constexpr uint32_t HUB_OFFLINE_TIMEOUT_MS    = 15000;           // Hub lost detection
+constexpr uint32_t STALE_DATA_TIMEOUT_MS     = 5000;            // Weather/room expiry
+constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS   = 15000;           // WiFi connection timeout
+constexpr uint32_t WIFI_RETRY_INTERVAL_MS    = 30000;           // WiFi retry backoff
+
+/* =============== ESP-NOW =============== */
 constexpr uint8_t ESPNOW_BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-/* ===== PACKET TYPES ===== */
+/* =============== PACKET TYPES =============== */
 constexpr uint8_t PACKET_TYPE_DATA   = 0x01;
 constexpr uint8_t PACKET_TYPE_CONFIG = 0x02;
 constexpr uint8_t PACKET_TYPE_ACK    = 0x03;
 constexpr uint8_t PACKET_TYPE_CMD    = 0x04;
 
-/* ===== COMMAND IDs ===== */
+/* =============== COMMAND IDs =============== */
 constexpr uint8_t CMD_FORCE_NTP_SYNC = 0x01;
 
-/* ===== PACKET STRUCTS ===== */
-/* --- Hub -> Display --- */
+/* =============== PACKET STRUCTS =============== */
+/* ------ Hub -> Display ------ */
 struct __attribute__((packed)) DataPacket {
-    /* --- System --- */
-    uint8_t  type;           // PACKET_TYPE_DATA
-    uint8_t  seq;            // Rolling sequence number
-    uint8_t  channel;        // Wi-Fi channel
-    uint8_t  wifiConnected;  // 1 if Hub is connected to Wi-Fi, 0 otherwise
-    
-    /* --- RTC --- */
-    uint32_t timestamp;      // Unix timestamp from DS3231
-
-    /* --- Location --- */
-    uint8_t  locationValid;  // Location validity check
+    uint8_t  type;
+    uint8_t  seq;
+    uint8_t  channel;
+    uint8_t  wifiConnected;
+    uint32_t timestamp;
+    uint8_t  locationValid;
     char     city[33];
-
-    /* --- Weather --- */
-    uint8_t  weatherValid;   // Weather validity check
+    uint8_t  weatherValid;
     uint8_t  weatherCode;
     float    outsideTemp;
-    float    apparentTemp;   // "Feels Like" Temperature
+    float    apparentTemp;
     uint8_t  outsideHumi;
     uint16_t outsidePress;
     float    windSpeed;
     int16_t  windDirection;
     char     sunrise[8];
     char     sunset[8];
-
-    /* --- Room Metrics --- */
-    uint8_t roomValid;       // Room sensors validity check
-    float   roomTemp;        // Room temperature, Celsius
-    float   roomHumi;        // Room humidity, percent
+    uint8_t  roomValid;
+    float    roomTemp;
+    float    roomHumi;
 };
 
 static_assert(sizeof(DataPacket) < 240, "DataPacket too large for ESP-NOW");
 
-/* --- Display -> Hub --- */
+/* ------ Display -> Hub ------ */
 struct __attribute__((packed)) ConfigPacket {
-    uint8_t type;           // PACKET_TYPE_CONFIG
-    char    ssid[33];       // Max 32 chars + null terminator
-    char    password[64];   // Max 63 chars + null terminator
-    char    ntp[64];        // NTP server string + null terminator
-    uint8_t seq;            // Sequence number for ACK matching
+    uint8_t type;
+    char    ssid[33];
+    char    password[64];
+    char    ntp[64];
+    uint8_t seq;
 };
 
-// Bidirectional
+/* ------ Bidirectional ------ */
 struct __attribute__((packed)) AckPacket {
-    uint8_t type;           // PACKET_TYPE_ACK
-    uint8_t ack_seq;        // Echoes back seq of received packet
+    uint8_t type;
+    uint8_t ack_seq;
 };
 
-// Display -> Hub
+/* ------ Display -> Hub ------ */
 struct __attribute__((packed)) CmdPacket {
-    uint8_t type;           // PACKET_TYPE_CMD
-    uint8_t cmd;            // Command ID (e.g. CMD_FORCE_NTP_SYNC)
-    uint8_t seq;            // Sequence number for ACK matching
+    uint8_t type;
+    uint8_t cmd;
+    uint8_t seq;
 };

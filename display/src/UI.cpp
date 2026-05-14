@@ -1,7 +1,5 @@
 /* ==================== UI.cpp ==================== */
 #include "UI.h"
-#include <math.h>
-#include <string.h>
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
@@ -10,11 +8,10 @@
 #include "fonts/material_design_other_20.h"
 #include "fonts/material_design_weather_40.h"
 
-/* ============ THIRD-PARTY ============ */
-/* None */
-
 /* ============ CORE ============ */
 #include <Arduino.h>
+#include <string.h>
+#include <math.h>
 #include <time.h>
 
 /* =============== INTERNAL STATE =============== */
@@ -49,7 +46,7 @@ const int R8_X_OFFSET = -4;
 
 /* Row icon gaps */
 const int R1_ICON_GAP  = 5;
-const int R3_ICON_GAP  = 0;
+const int R3_ICON_GAP  = 1;
 const int R5_HUMI_GAP  = 0;
 const int R5_PRESS_GAP = 4;
 const int R6_ICON_GAP  = 4;
@@ -69,16 +66,18 @@ static const Palette DARK = {
     .text_invert = 0x18181B,
     .subtext     = 0xAFAFB6,
     .dim         = 0x61616B,
+    .unknown     = 0x808080,
     .settings    = 0x878792,
-    .red         = 0xFF2D2D,
+    .red         = 0xff2020,
+    .location    = 0xff2020,
     .deep_orange = 0xFF6333,
     .orange      = 0xFF9630,
     .gold        = 0xFFCA28,
-    .green       = 0x00e626,
+    .green       = 0x00E621,   // :3
     .wind        = 0x52CC58,
-    .online      = 0x2DE636,
-    .pastel_blue = 0xA8E0FA,
-    .sky_blue    = 0x55C4F7,
+    .online      = 0x20E040,
+    .pastel_blue = 0xB0E0FF,
+    .sky_blue    = 0x55B0F7,
 };
 
 static const Palette LIGHT = {
@@ -87,16 +86,18 @@ static const Palette LIGHT = {
     .text_invert = 0xFFFFFF,
     .subtext     = 0x60606C,
     .dim         = 0xAFAFB6,
+    .unknown     = 0x808080,
     .settings    = 0x878792,
-    .red         = 0xFF2D2D,
+    .red         = 0xff2020,
+    .location    = 0xff2020,
     .deep_orange = 0xFF6333,
     .orange      = 0xFF9630,
-    .gold        = 0xFFCA28,
-    .green       = 0x00e626,
-    .wind        = 0x52CC58,
-    .online      = 0x2DE636,
-    .pastel_blue = 0x60C6F6,
-    .sky_blue    = 0x0BAAF4,
+    .gold        = 0xFFD042,
+    .green       = 0x00E621,   // :3
+    .wind        = 0x5CE663,
+    .online      = 0x20F040,
+    .pastel_blue = 0x60C0FF,
+    .sky_blue    = 0x55B0F7,
 };
 
 /* ============ STATIC MEMBERS ============ */
@@ -207,6 +208,8 @@ UI::UI()
     , _showSeconds(false)
     , _darkTheme(true)
     , _currentScreen(Screen::DASHBOARD)
+    , _lastWeatherValidMs(0)
+    , _lastRoomValidMs(0)
     , _onConfigSubmit(nullptr)
     , _onForceSync(nullptr)
 {
@@ -233,42 +236,35 @@ void UI::begin() {
 
 void UI::update(const DataPacket& pkt, bool hubOnline) {
     if (_currentScreen != Screen::DASHBOARD) return;
-
-    /* Placeholder mode */
-    if (pkt.timestamp < 1000000000UL) {
-        lv_canvas_fill_bg(_canvas, lv_color_hex(theme->bg), LV_OPA_COVER);
-        _drawAnalogClock(0, 0, 0);
-        
-        const char* t_ph = _showSeconds ? "--:--:--" : "--:--";
-        if (strcmp(lv_label_get_text(_lblTime), t_ph) != 0) {
-            lv_label_set_text(_lblTime, t_ph);
-        }
-        
-        const char* d_ph = (_dateFmt == DateFormat::TEXT) ? "-- --- ----" : "--/--/----";
-        if (strcmp(lv_label_get_text(_lblDate), d_ph) != 0) {
-            lv_label_set_text(_lblDate, d_ph);
-        }
-        return;
+    
+    uint32_t now = millis();
+    static uint8_t lastSeq = 0;
+    
+    /* Only update timestamp when we receive a NEW packet */
+    if (pkt.seq != lastSeq) {
+        lastSeq = pkt.seq;
+        if (pkt.weatherValid) _lastWeatherValidMs = now;
+        if (pkt.roomValid) _lastRoomValidMs = now;
     }
-
-    /* Status dot */
-    if (_statusDot) {
-        lv_color_t targetCol;
-        if (!hubOnline) {
-            targetCol = lv_color_hex(theme->red);
-        } else if (!pkt.weatherValid) {
-            targetCol = lv_color_hex(theme->gold);
-        } else {
-            targetCol = lv_color_hex(theme->online);
+    
+    /* Invalidate immediately if hub is offline */
+    DataPacket modified = pkt;
+    if (!hubOnline) {
+        modified.weatherValid = false;
+        modified.roomValid = false;
+        modified.timestamp = 0;
+    } 
+    /* Otherwise check timeout */
+    else {
+        if (_lastWeatherValidMs > 0 && (now - _lastWeatherValidMs) > STALE_DATA_TIMEOUT_MS) {
+            modified.weatherValid = false;
         }
-        
-        lv_color_t currentCol = lv_obj_get_style_bg_color(_statusDot, 0);
-        if (targetCol.full != currentCol.full) {
-            lv_obj_set_style_bg_color(_statusDot, targetCol, 0);
+        if (_lastRoomValidMs > 0 && (now - _lastRoomValidMs) > STALE_DATA_TIMEOUT_MS) {
+            modified.roomValid = false;
         }
     }
-
-    _updateDashboard(pkt);
+    
+    _updateDashboard(modified, hubOnline);
 }
 
 void UI::showScreen(Screen s) {
@@ -304,7 +300,7 @@ void UI::_buildDashboard() {
     {
     const int r1_y     = MARGIN - 2;
 
-    _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->subtext, 0, r1_y);
+    _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->unknown, 0, r1_y);
     _lblWeatherTemp = _makeLabel(_scrDashboard, "--\xC2\xB0""C", &lv_font_montserrat_32, theme->text, 0, r1_y);
     
     lv_obj_update_layout(_scrDashboard);
@@ -322,6 +318,10 @@ void UI::_buildDashboard() {
 
     _lblCondition = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_18, theme->text,
         MARGIN, r2_y);
+    
+    lv_label_set_long_mode(_lblCondition, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_anim_speed(_lblCondition, 15, 0);
+
     lv_obj_set_style_text_align(_lblCondition, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(_lblCondition, VDIV_X - (MARGIN * 2) + R2_X_OFFSET);
     }
@@ -330,8 +330,11 @@ void UI::_buildDashboard() {
     {
     const int r3_y     = 68;
 
-    _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->red, 0, r3_y + 0);
+    _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->unknown, 0, r3_y + 0);
     _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_16, theme->text, 0, r3_y);
+    
+    lv_label_set_long_mode(_lblLocation, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_anim_speed(_lblLocation, 15, 0);
     
     lv_obj_update_layout(_scrDashboard);
     int iw = lv_obj_get_width(_lblLocationIcon);
@@ -448,6 +451,10 @@ void UI::_buildDashboard() {
     lv_obj_set_style_border_width(_canvas, 0, 0);
     lv_obj_set_pos(_canvas, CLK_X, CLK_Y);
 
+    /* Draw initial clock at 12:00:00 */
+    lv_canvas_fill_bg(_canvas, lv_color_hex(theme->bg), LV_OPA_COVER);
+    _drawAnalogClock(0, 0, 0);
+
     _lblTime = _makeLabel(_scrDashboard, _showSeconds ? "--:--:--" : "--:--",
         &lv_font_montserrat_24, theme->text, 170, 159);
     lv_obj_set_style_text_align(_lblTime, LV_TEXT_ALIGN_CENTER, 0);
@@ -483,7 +490,7 @@ void UI::_buildDashboard() {
     lv_scr_load(_scrDashboard);
 }
 
-void UI::_updateDashboard(const DataPacket& pkt) {
+void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
     char buf[32];
     WeatherInfo w = pkt.weatherValid ? getWeatherInfo(pkt.weatherCode) : UNKNOWN_WEATHER;
 
@@ -500,24 +507,50 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     lv_obj_set_x(_lblWeatherIcon, sx);
     lv_obj_set_x(_lblWeatherTemp, sx + iw + R1_ICON_GAP);
 
-    /* Row 2: Weather condition */
-    lv_label_set_text(_lblCondition, w.desc);
+    /* Row 2: Weather condition (Standalone) */
+    {
+        lv_label_set_text(_lblCondition, w.desc);
+        lv_obj_update_layout(_lblCondition);
+        
+        int natural_w = lv_obj_get_self_width(_lblCondition);
+        int max_w = VDIV_X - (MARGIN * 2);
 
-    /* Row 3: Location */
-    if (pkt.locationValid && strlen(pkt.city) > 0) {
-        lv_label_set_text(_lblLocation, pkt.city);
-        lv_obj_set_style_text_color(_lblLocationIcon, lv_color_hex(theme->red), 0);
-    } else {
-        lv_label_set_text(_lblLocation, "Unknown");
-        lv_obj_set_style_text_color(_lblLocationIcon, lv_color_hex(theme->subtext), 0);
+        if (natural_w > max_w) {
+            lv_obj_set_width(_lblCondition, max_w);
+        } else {
+            lv_obj_set_width(_lblCondition, LV_SIZE_CONTENT);
+        }
+        // Center based on actual resulting width
+        lv_obj_set_x(_lblCondition, (VDIV_X - lv_obj_get_width(_lblCondition)) / 2 + R2_X_OFFSET);
     }
-    lv_obj_update_layout(_scrDashboard);
-    iw = lv_obj_get_width(_lblLocationIcon);
-    tw = lv_obj_get_width(_lblLocation);
-    sx = (VDIV_X - (iw + R3_ICON_GAP + tw)) / 2;
-    sx += R3_X_OFFSET;
-    lv_obj_set_x(_lblLocationIcon, sx);
-    lv_obj_set_x(_lblLocation, sx + iw + R3_ICON_GAP);
+
+    /* Row 3: Location (Icon + Text) */
+    {
+        const char* city_txt = (pkt.locationValid && strlen(pkt.city) > 0) ? pkt.city : "Unknown";
+        lv_label_set_text(_lblLocation, city_txt);
+        lv_obj_set_style_text_color(_lblLocationIcon, lv_color_hex(pkt.locationValid ? theme->location : theme->unknown), 0);
+
+        lv_obj_update_layout(_lblLocationIcon);
+        lv_obj_update_layout(_lblLocation);
+        
+        int iw = lv_obj_get_width(_lblLocationIcon);
+        int natural_tw = lv_obj_get_self_width(_lblLocation);
+        int max_tw = VDIV_X - (MARGIN * 2) - iw - R3_ICON_GAP;
+
+        int final_tw;
+        if (natural_tw > max_tw) {
+            final_tw = max_tw;
+            lv_obj_set_width(_lblLocation, final_tw);
+        } else {
+            final_tw = natural_tw;
+            lv_obj_set_width(_lblLocation, LV_SIZE_CONTENT);
+        }
+
+        // Calculate sx to center the Icon + Gap + Label unit
+        int sx = (VDIV_X - (iw + R3_ICON_GAP + final_tw)) / 2 + R3_X_OFFSET;
+        lv_obj_set_x(_lblLocationIcon, sx);
+        lv_obj_set_x(_lblLocation, sx + iw + R3_ICON_GAP);
+    }
 
     /* Row 4: Feels like */
     snprintf(buf, sizeof(buf), pkt.weatherValid ? "Feels like: %.0f°C" : "Feels like: --°C", pkt.apparentTemp);
@@ -593,7 +626,6 @@ void UI::_updateDashboard(const DataPacket& pkt) {
     lv_obj_set_x(_lblRoomHumidVal, sx + tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP + hiiw + R8_HUMI_GAP);
 
     /* Clock */
-    lv_canvas_fill_bg(_canvas, lv_color_hex(theme->bg), LV_OPA_COVER);
     time_t now = time(nullptr);
     if (now > 1000000000L) {
         struct tm* t = localtime(&now);
@@ -611,6 +643,23 @@ void UI::_updateDashboard(const DataPacket& pkt) {
         lv_label_set_text(_lblDate, buf);
         lv_label_set_text(_lblDay, DAY_NAMES[t->tm_wday]);
         _drawAnalogClock(t->tm_hour, t->tm_min, t->tm_sec);
+    }
+
+    /* Status dot */
+    if (_statusDot) {
+        lv_color_t targetCol;
+        if (!hubOnline) {
+            targetCol = lv_color_hex(theme->red);
+        } else if (!pkt.weatherValid) {
+            targetCol = lv_color_hex(theme->gold);
+        } else {
+            targetCol = lv_color_hex(theme->online);
+        }
+        
+        lv_color_t currentCol = lv_obj_get_style_bg_color(_statusDot, 0);
+        if (targetCol.full != currentCol.full) {
+            lv_obj_set_style_bg_color(_statusDot, targetCol, 0);
+        }
     }
 }
 
@@ -848,31 +897,21 @@ void UI::_buildConfig() {
     lv_obj_set_style_text_font(_ddDateFmt, &lv_font_montserrat_14, 0);
     lv_obj_add_event_cb(_ddDateFmt, _onDateFmtDropdownCb, LV_EVENT_VALUE_CHANGED, this);
 
-    /* Button container (outside tabview) */
-    lv_obj_t* contButtons = lv_obj_create(_scrConfig);
-    lv_obj_remove_style_all(contButtons);
-    lv_obj_set_width(contButtons, SCR_W);
-    lv_obj_set_height(contButtons, 54);
-    lv_obj_set_pos(contButtons, 0, SCR_H - 54);
-    lv_obj_clear_flag(contButtons, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-
     /* Save button */
-    lv_obj_t* btnSave = lv_btn_create(contButtons);
-    lv_obj_set_width(btnSave, 100);
-    lv_obj_set_height(btnSave, 36);
-    lv_obj_set_pos(btnSave, 5, 9);
+    lv_obj_t* btnSave = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnSave, 100, 36);
+    lv_obj_align(btnSave, LV_ALIGN_BOTTOM_LEFT, 5, -5);
     lv_obj_set_style_bg_color(btnSave, lv_color_hex(theme->sky_blue), 0);
     lv_obj_t* saveLabel = lv_label_create(btnSave);
-    lv_label_set_text(saveLabel, "Save & Send");
+    lv_label_set_text(saveLabel, "Save");
     lv_obj_set_style_text_font(saveLabel, &lv_font_montserrat_14, 0);
     lv_obj_center(saveLabel);
     lv_obj_add_event_cb(btnSave, _onConfigSaveCb, LV_EVENT_CLICKED, this);
 
     /* Sync NTP button */
-    lv_obj_t* btnSyncNtp = lv_btn_create(contButtons);
-    lv_obj_set_width(btnSyncNtp, 100);
-    lv_obj_set_height(btnSyncNtp, 36);
-    lv_obj_set_pos(btnSyncNtp, 109, 9);
+    lv_obj_t* btnSyncNtp = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnSyncNtp, 100, 36);
+    lv_obj_align(btnSyncNtp, LV_ALIGN_BOTTOM_MID, 0, -5);
     lv_obj_set_style_bg_color(btnSyncNtp, lv_color_hex(theme->wind), 0);
     lv_obj_t* syncLabel = lv_label_create(btnSyncNtp);
     lv_label_set_text(syncLabel, "Sync NTP");
@@ -881,16 +920,15 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(btnSyncNtp, _onForceSyncCb, LV_EVENT_CLICKED, this);
 
     /* Back button */
-    lv_obj_t* btnBackW = lv_btn_create(contButtons);
-    lv_obj_set_width(btnBackW, 100);
-    lv_obj_set_height(btnBackW, 36);
-    lv_obj_set_pos(btnBackW, SCR_W - 107, 9);
-    lv_obj_set_style_bg_color(btnBackW, lv_color_hex(theme->dim), 0);
-    lv_obj_t* backLabel = lv_label_create(btnBackW);
+    lv_obj_t* btnBack = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnBack, 100, 36);
+    lv_obj_align(btnBack, LV_ALIGN_BOTTOM_RIGHT, -5, -5);
+    lv_obj_set_style_bg_color(btnBack, lv_color_hex(theme->dim), 0);
+    lv_obj_t* backLabel = lv_label_create(btnBack);
     lv_label_set_text(backLabel, LV_SYMBOL_LEFT " Back");
     lv_obj_set_style_text_font(backLabel, &lv_font_montserrat_14, 0);
     lv_obj_center(backLabel);
-    lv_obj_add_event_cb(btnBackW, _onBackBtnCb, LV_EVENT_CLICKED, this);
+    lv_obj_add_event_cb(btnBack, _onBackBtnCb, LV_EVENT_CLICKED, this);
 
     /* Keyboard Setup */
     _kbConfig = lv_keyboard_create(_scrConfig);

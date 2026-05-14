@@ -17,13 +17,12 @@
 static Sensors    sensors;
 static RTCManager rtc;
 static Network    network;
-static Weather    weather;
 
 /* =============== INTERNAL HELPERS =============== */
 /* ============ CALLBACKS ============ */
 /* ------ onConfigReceived ------ */
 static void onConfigReceived(const ConfigPacket& pkt) {
-    /* Leaf: Network::saveConfig already reconnects if credentials changed */
+    /* Network::saveConfig already reconnects if credentials changed */
     Serial.println("[MAIN] Config received from Display");
 }
 

@@ -4,7 +4,6 @@
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
 #include "config/Config.h"
-#include "config/LocationConfig.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>
@@ -13,7 +12,8 @@
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
 LocationResolver::LocationResolver() 
-    : _valid(false)
+    : _cachedCity("Unknown")
+    , _valid(false)
     , _lastAttemptMs(0)
     , _retryCount(0)
     , _pendingLat(0)
@@ -118,12 +118,12 @@ String LocationResolver::_fetchFromAPI(float lat, float lon) {
         return "Unknown";
     }
 
-    JsonObject addr = doc["address"];
+    JsonObject addr  = doc["address"];
     const char* city = addr["city"];
-    if (!city) city = addr["town"];
-    if (!city) city = addr["village"];
-    if (!city) city = addr["state"];
-    if (!city) city = addr["country"];
+    if (!city) city  = addr["town"];
+    if (!city) city  = addr["village"];
+    if (!city) city  = addr["state"];
+    if (!city) city  = addr["country"];
 
     return city ? String(city) : "Unknown";
 }

@@ -18,41 +18,34 @@ static Network        network;
 static UI             ui;
 
 static DataPacket        g_lastPkt = {};
-static volatile uint32_t g_lastPktMs = 0;   /* millis() of last DataPacket — for offline detection */
 static SemaphoreHandle_t g_pktMutex = nullptr;
 
 /* =============== INTERNAL HELPERS =============== */
 /* ============ CALLBACKS ============ */
-/* ------ onData ------ */
 static void onData(const DataPacket& pkt) {
     if (g_pktMutex && xSemaphoreTake(g_pktMutex, portMAX_DELAY)) {
         g_lastPkt = pkt;
-        g_lastPktMs = millis();
         xSemaphoreGive(g_pktMutex);
     }
 }
 
-/* ------ onConfigSubmit ------ */
 static void onConfigSubmit(const char* ssid, const char* password, const char* ntp) {
     network.saveConfig(ssid, password, ntp);
     network.sendConfig(ssid, password, ntp);
 }
 
-/* ------ onForceSync ------ */
 static void onForceSync() {
     network.sendCmd(CMD_FORCE_NTP_SYNC);
 }
 
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
-/* ========= setup ========= */
 void setup() {
     Serial.begin(115200);
     Serial.println("[MAIN] AmbiSense Display booting...");
 
     g_pktMutex = xSemaphoreCreateMutex();
 
-    /* --- Bangkok UTC+7, no DST --- */
     setenv("TZ", "ICT-7", 1);
     tzset();
 
@@ -60,7 +53,6 @@ void setup() {
 
     network.begin();
     network.setOnDataReceived(onData);
-    // Remove onStatusChanged – UI will use network.isOnline() directly
 
     ui.setOnConfigSubmit(onConfigSubmit);
     ui.setOnForceSyncCmd(onForceSync);
@@ -69,7 +61,6 @@ void setup() {
     Serial.println("[MAIN] Boot complete.");
 }
 
-/* ========= loop ========= */
 void loop() {
     display.update();
     network.update();

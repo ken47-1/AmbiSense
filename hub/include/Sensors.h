@@ -1,10 +1,15 @@
-/* ========== Sensors.h ========== */
+/* ==================== Sensors.h ==================== */
 #pragma once
 
-#include <DHT.h>
+/* =============== INCLUDES =============== */
+/* ============ PROJECT ============ */
 #include "config/Config.h"
 #include "config/HardwareConfig.h"
 
+/* ============ THIRD-PARTY ============ */
+#include <DHT.h>
+
+/* =============== API =============== */
 class Sensors {
 public:
     Sensors();

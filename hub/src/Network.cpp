@@ -46,7 +46,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     else if (type == PACKET_TYPE_ACK && len == sizeof(AckPacket)) {
         AckPacket pkt;
         memcpy(&pkt, data, sizeof(pkt));
-        #if DEBUG_NET
+        #if DEBUG_NETWORK
         Serial.printf("[NET] ACK from display seq=%u\n", pkt.ack_seq);
         #endif
     }
@@ -188,7 +188,7 @@ void Network::update() {
                 esp_wifi_set_ps(WIFI_PS_NONE);
                 Serial.printf("\n[NET] Connected to IP: %s\n", WiFi.localIP().toString().c_str());
             } 
-            else if (_now - _connectTimeoutMs > 15000) { // 15s timeout
+            else if (_now - _connectTimeoutMs > WIFI_CONNECT_TIMEOUT_MS) {
                 Serial.println("\n[NET] Connection timed out");
                 _wifiState = WifiState::WAIT_RETRY;
                 _lastReconnectAttempt = _now;
@@ -205,7 +205,7 @@ void Network::update() {
 
         case WifiState::WAIT_RETRY:
         case WifiState::IDLE:
-            if (_hasConfig && (_now - _lastReconnectAttempt > 30000)) {
+            if (_hasConfig && (_now - _lastReconnectAttempt > WIFI_RETRY_INTERVAL_MS)) {
                 connectWiFi();
             }
             break;
@@ -226,7 +226,7 @@ void Network::update() {
         _buildDataPacket(pkt, w); 
         broadcastData(pkt);
         
-        #if DEBUG_NET
+        #if DEBUG_NETWORK
         Serial.println("[NET] Periodic broadcast sent");
         #endif
     }

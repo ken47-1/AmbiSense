@@ -9,19 +9,14 @@
 /* ============ STRUCTS ============ */
 struct WeatherData {
     bool  valid;
-
     float temp;
     float feelsLike;
-
     int   humidity;
     int   pressure;
-
     float windSpeed;
     int   windDirection;
-
-    char  sunrise[6];   // "HH:MM"
+    char  sunrise[6];
     char  sunset[6];
-
     int   weatherCode;
 };
 
@@ -34,10 +29,10 @@ struct WeatherInfo {
 
 /* =============== UNKNOWN WEATHER =============== */
 static constexpr WeatherInfo UNKNOWN_WEATHER = {
--1,
-"\xF3\xB0\x8B\x97",
-"Unknown",
-WeatherColors::DARK_GRAY
+    -1,
+    "\xF3\xB0\x8B\x97",
+    "Unknown",
+    WeatherColors::DARK_GRAY
 };
 
 /* =============== API =============== */

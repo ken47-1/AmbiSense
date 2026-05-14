@@ -23,33 +23,26 @@ struct NTPStatus {
 
 /* =============== API =============== */
 class RTCManager {
-/* ============ PUBLIC ============ */
 public:
     RTCManager();
 
-    /* ========= LIFECYCLE ========= */
     void begin();
     void update(uint32_t nowMs, bool wifiConnected, const char* ntpServer);
 
-    /* ========= GETTERS ========= */
     DateTime  getTime();
-    NTPStatus getNTPStatus()   const { return _ntpStatus; }
-    bool      isRunning()      const { return _running; }
+    NTPStatus getNTPStatus() const { return _ntpStatus; }
+    bool      isRunning()    const { return _running; }
 
-    /* ========= ACTIONS ========= */
     void forceSync() {
         _ntpStatus.everSynced = false;
         _ntpStatus.state      = SyncState::IDLE;
         _ntpStatus.retries    = 0;
     }
 
-/* ============ PRIVATE ============ */
 private:
-    /* ========= HANDLERS ========= */
     void _startSync(const char* ntpServer);
     void _finishSync();
 
-    /* ========= STATE ========= */
     RTC_DS3231  _rtc;
     NTPStatus   _ntpStatus;
     bool        _running;

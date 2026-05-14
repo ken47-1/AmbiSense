@@ -25,8 +25,10 @@ struct Palette {
     uint32_t text_invert;
     uint32_t subtext;
     uint32_t dim;
+    uint32_t unknown;
     uint32_t settings;
     uint32_t red;
+    uint32_t location;
     uint32_t deep_orange;
     uint32_t orange;
     uint32_t gold;
@@ -42,7 +44,6 @@ struct Palette {
 
 /* =============== API =============== */
 class UI {
-/* ============ PUBLIC ============ */
 public:
     static const Palette* theme;
 
@@ -54,25 +55,20 @@ public:
     void setOnConfigSubmit(void (*cb)(const char*, const char*, const char*));
     void setOnForceSyncCmd(void (*cb)());
 
-/* ============ PRIVATE ============ */
 private:
-    /* ========= LIFECYCLE ========= */
     void _loadPrefs();
     void _savePrefs();
 
-    /* ========= SCREENS ========= */
     void _buildDashboard();
     void _buildConfig();
-    void _updateDashboard(const DataPacket& pkt);
+    void _updateDashboard(const DataPacket& pkt, bool hubOnline);
     void _drawAnalogClock(int h, int m, int s);
 
-    /* ========= UI FACTORY ========= */
     lv_obj_t* _makeLabel(lv_obj_t* parent, const char* txt, const lv_font_t* font,
                          uint32_t col, int x, int y);
     void _makeHdiv(lv_obj_t* parent, int x, int y, int w, int thick, uint32_t col);
     void _makeVdiv(lv_obj_t* parent, int x, int y, int h, int thick, uint32_t col);
 
-    /* ========= WIDGETS ========= */
     lv_obj_t* _scrDashboard;
     lv_obj_t* _scrConfig;
     lv_obj_t* _lblWeatherIcon;
@@ -102,7 +98,7 @@ private:
     lv_obj_t* _canvas;
     lv_obj_t* _statusDot;
     lv_obj_t* _btnSettings;
-    lv_obj_t* _tabviewConfig; // new
+    lv_obj_t* _tabviewConfig;
     lv_obj_t* _taSSID;
     lv_obj_t* _taPass;
     lv_obj_t* _taNTP;
@@ -112,23 +108,22 @@ private:
     lv_obj_t* _swSeconds;
     lv_obj_t* _ddDateFmt;
 
-    /* ========= STATE ========= */
     Preferences _prefs;
     DateFormat  _dateFmt;
     bool        _showSeconds;
     bool        _darkTheme;
     Screen      _currentScreen;
 
+    uint32_t _lastWeatherValidMs;
+    uint32_t _lastRoomValidMs;
+
     static UI*         _instance;
     static lv_color_t  _clockBuf[CLK_SIZE * CLK_SIZE];
 
-    /* ========= CALLBACKS ========= */
     void (*_onConfigSubmit)(const char*, const char*, const char*);
     void (*_onForceSync)();
 
-    /* ========= STATIC CALLBACKS ========= */
     static void _onSettingsBtnCb(lv_event_t* e);
-    static void _onTabSwitchCb(lv_event_t* e);
     static void _onThemeBtnCb(lv_event_t* e);
     static void _onSecondsSwitchCb(lv_event_t* e);
     static void _onDateFmtDropdownCb(lv_event_t* e);

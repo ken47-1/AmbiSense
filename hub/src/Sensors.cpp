@@ -1,10 +1,12 @@
-/* ========== Sensors.cpp ========== */
+/* ==================== Sensors.cpp ==================== */
 #include "Sensors.h"
 
-/* ===== INCLUDES ===== */
-/* --- CORE --- */
+/* =============== INCLUDES =============== */
+/* ============ CORE ============ */
 #include <Arduino.h>
 
+/* =============== PUBLIC API =============== */
+/* ============ LIFECYCLE ============ */
 Sensors::Sensors()
     : _dht(DHT_PIN, DHT_TYPE)
     , _temp(0.0f)
