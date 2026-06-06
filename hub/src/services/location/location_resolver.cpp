@@ -1,5 +1,5 @@
-/* ==================== LocationResolver.cpp ==================== */
-#include "LocationResolver.h"
+/* ==================== location_resolver.cpp ==================== */
+#include "services/location/location_resolver.h"
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */

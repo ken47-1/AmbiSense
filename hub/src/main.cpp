@@ -4,10 +4,10 @@
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
 #include "config/Config.h"
-#include "Sensors.h"
-#include "RTCManager.h"
-#include "Weather.h"
-#include "Network.h"
+#include "sensors/sensors.h"
+#include "time/rtc_manager.h"
+#include "services/weather/weather.h"
+#include "network/network.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>

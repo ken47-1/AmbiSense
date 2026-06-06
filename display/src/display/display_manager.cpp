@@ -1,5 +1,5 @@
-/* ==================== DisplayManager.cpp ==================== */
-#include "DisplayManager.h"
+/* ==================== display_manager.cpp ==================== */
+#include "display/display_manager.h"
 
 /* =============== INCLUDES =============== */
 /* ============ CORE ============ */

@@ -1,9 +1,9 @@
-/* ==================== WeatherTypes.h ==================== */
+/* ==================== weather_types.h ==================== */
 #pragma once
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "WeatherColors.h"
+#include "weather/weather_colors.h"
 
 /* =============== TYPES =============== */
 /* ============ STRUCTS ============ */

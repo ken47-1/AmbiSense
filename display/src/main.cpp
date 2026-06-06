@@ -3,9 +3,9 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "DisplayManager.h"
-#include "Network.h"
-#include "UI.h"
+#include "display/display_manager.h"
+#include "network/network.h"
+#include "display/ui.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>

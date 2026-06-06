@@ -1,10 +1,10 @@
-/* ==================== UI.h ==================== */
+/* ==================== ui.h ==================== */
 #pragma once
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
 #include "config/Config.h"
-#include "WeatherTypes.h"
+#include "weather/weather_types.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <lvgl.h>

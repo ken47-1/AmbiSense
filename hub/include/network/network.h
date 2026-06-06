@@ -1,13 +1,13 @@
-/* ==================== Network.h ==================== */
+/* ==================== network.h ==================== */
 #pragma once
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
 #include "config/Config.h"
-#include "Sensors.h"
-#include "RTCManager.h"
-#include "Weather.h"
-#include "LocationResolver.h"
+#include "sensors/Sensors.h"
+#include "time/rtc_manager.h"
+#include "services/weather/weather.h"
+#include "services/location/location_resolver.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <WiFi.h>

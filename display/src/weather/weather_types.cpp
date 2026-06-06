@@ -1,5 +1,5 @@
-/* ==================== WeatherTypes.cpp ==================== */
-#include "WeatherTypes.h"
+/* ==================== weather_types.cpp ==================== */
+#include "weather/weather_types.h"
 
 /* =============== DATA =============== */
 // NOTES ARE PARTLY COPIED FROM
