@@ -17,6 +17,16 @@ Real-time ambient weather and room sensor display system. ESP32 Hub fetches live
 - **ESP-NOW Communication** — Low-latency (~50ms), no router required, auto-channel sync
 - **Reverse Geocoding** — City name resolved from GPS coordinates via Nominatim (no API key)
 
+## Prerequisites
+
+Before building and flashing, ensure you have:
+
+- [PlatformIO IDE](https://platformio.org/install) (VS Code extension or CLI)
+- ESP32 USB drivers ([CP210x](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers) or [CH340](https://www.wch.cn/download/CH341SER_EXE.html) depending on your board)
+- USB cable (data-capable, not just charging)
+
+The project uses PlatformIO's dependency management — all required libraries will be automatically downloaded during the first build.
+
 ## UI Features
 
 ### Dual Themes
@@ -238,7 +248,7 @@ AmbiSense/
 
 | Symptom | Likely Fix |
 |---|---|
-| Red dot | Check Hub power; both on same 2.4GHz band |
+| Red indicator dot | Check Hub power; both on same 2.4GHz band |
 | "Unknown" city | Hub needs internet at boot; check `LOCATION_LAT`/`LON` |
 | Time incorrect | NTP sync required; check `GMT_OFFSET_SEC` |
 | Config not saving | `pio run -t erase` |
@@ -265,6 +275,17 @@ AmbiSense/
 | Theme colors | `ui.cpp` | `DARK` / `LIGHT` palettes |
 | Location | `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` |
 | UI Layout | `UIConfig.h` | Screen size, margins, gaps |
+
+## For Developers
+
+This project enforces a strict code layout standard documented in [`docs/Code_Layout_Standard.md`](docs/Code_Layout_Standard.md). Key rules:
+
+- One logical module per file
+- Headers declare public API only — no implementation
+- Source files contain all implementation and internal state
+- Comment hierarchy: T1 (file header) → T7 (inline notes)
+
+When contributing, follow the visual hierarchy scale defined in the standard document.
 
 ## Links
 

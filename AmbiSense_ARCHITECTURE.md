@@ -66,31 +66,21 @@ Both devices are independent; can develop/test separately. Communication via ESP
 
 ### Data Flow (Hub)
 
-```
-GPS coordinates (LocationConfig.h)
-    ↓
-LocationResolver (reverse geocoding via Nominatim, once at boot)
-    ↓
-City name cached → "Bangkok"
-    ↓
-Weather API (Open-Meteo)
-    ↓
-Weather module (cached, ~30min refresh, FreeRTOS task)
-    ↓
-DHT22 sensor (polled every 2s)
-    ↓
-DS3231 RTC (accurate time, NTP-synced)
-    ↓
-DataPacket assembly in Network::update()
-├── Location (city name from LocationResolver, locationValid flag)
-├── Weather (temp, humidity, pressure, wind, sunrise/sunset, WMO code)
-├── Room sensors (temp, humidity from DHT22)
-├── RTC timestamp (from DS3231)
-└── Status flags (WiFi connected, data valid, channel, seq)
-    ↓
-ESP-NOW broadcast (every 250ms, broadcast address)
-    ↓
-Display RX
+```mermaid
+flowchart TD
+    GPS[GPS coordinates<br>LocationConfig.h] --> LR[LocationResolver<br>Nominatim reverse geocoding]
+    LR --> City[City name cached]
+    City --> Network[Network Module]
+    
+    API[Weather API<br>Open-Meteo] --> WeatherMod[Weather module<br>~30min refresh]
+    WeatherMod --> Network
+    
+    DHT[DHT22 sensor<br>polled every 2s] --> Network
+    RTC[DS3231 RTC<br>NTP-synced] --> Network
+    
+    Network --> DataPacket[DataPacket assembly]
+    DataPacket --> Broadcast[ESP-NOW broadcast<br>every 250ms]
+    Broadcast --> Display[Display RX]
 ```
 
 ### Packet Structure
@@ -98,7 +88,7 @@ Display RX
 All packets defined in `include/config/Config.h` (shared):
 
 **DataPacket** (Hub → Display, broadcast every 250ms, ~100 bytes)
-```
+```cpp
 uint8_t  type              // PACKET_TYPE_DATA (0x01)
 uint8_t  seq               // Rolling sequence (0–255)
 uint8_t  channel           // Wi-Fi channel (for Display auto-sync)
@@ -198,34 +188,68 @@ float    roomHumi          // %
 
 ### Data Flow (Display)
 
+```mermaid
+flowchart TD
+    RX[ESP-NOW RX<br>every 250ms] --> Check{No packet<br>for 15s?}
+    Check -->|Yes| Scan[Channel hopping scan<br>ch 1–13, 1 sec each]
+    Check -->|No| Lock[Lock to Hub channel]
+    Scan --> Lock
+    Lock --> Store[DataPacket stored in g_lastPkt<br>mutex-protected]
+    Store --> UI["UI::update() every 100ms"]
+    
+    UI --> Format[Format time/date<br>HH:MM:SS optional]
+    UI --> Icon[Select weather icon<br>based on WMO code]
+    UI --> Center[Auto-center each row]
+    UI --> Display[Display all metrics]
+    UI --> Theme[Update theme colors]
+    UI --> Dot[Calculate status dot<br>Green/Gold/Red]
+    
+    Center --> Rows[Weather icon+temp<br>Weather condition<br>Location icon+city<br>Humidity+pressure<br>Wind speed+direction<br>Sunrise+sunset<br>Room temp+humidity]
+    
+    Display --> Render[LVGL render queue]
+    Render --> LCD[(320×240 IPS TFT)]
 ```
-ESP-NOW RX (broadcast from Hub, every 250ms)
-    ↓
-If no packet for 15 seconds → channel hopping scan (ch 1–13, 1 sec each)
-    ↓
-DataPacket received → lock to Hub's channel → resume normal operation
-    ↓
-DataPacket stored in g_lastPkt (mutex-protected)
-    ↓
-UI::update() called every 100ms with DataPacket&
-├── Format time/date (HH:MM[:SS], optional seconds)
-├── Select weather icon (based on WMO code)
-├── Auto-center each row:
-│   ├── Weather icon + temp
-│   ├── Weather condition (centered, marquee if too long)
-│   ├── Location icon + city
-│   ├── Humidity + pressure pair
-│   ├── Wind speed + direction
-│   ├── Sunrise + sunset pair
-│   └── Room temp + humidity pair
-├── Display all metrics
-├── Update theme colors
-└── Calculate status dot (Green=online+weather, Gold=online+no weather, Red=offline)
-    ↓
-LVGL render queue
-    ↓
-LCD (320×240 IPS)
+
+### Offline Detection & Recovery
+
+The Display uses a state machine to detect and recover from Hub disconnections:
+
+```mermaid
+flowchart TD
+    RX[ESP-NOW RX] --> Check{Last packet<br>< 15s ago?}
+    
+    Check -->|Yes| Online[STATE: ONLINE<br>Show live data]
+    Online --> DotGreen[Status dot: Green]
+    Online --> Data[Display all valid metrics]
+    
+    Check -->|No| Offline[STATE: OFFLINE<br>Enter scanning mode]
+    Offline --> DotRed[Status dot: Red]
+    Offline --> Scan[Channel hopping<br>ch 1→13, 1 sec each]
+    Scan --> Try{Valid packet<br>received?}
+    Try -->|No| Scan
+    Try -->|Yes| Online
+    
+    subgraph DataValidity[Data Validity]
+        WeatherCheck{Weather data<br>valid?}
+        Data --> WeatherCheck
+        WeatherCheck -->|Yes| DotGreen
+        WeatherCheck -->|No| DotGold[Status dot: Gold<br>Hub online, weather stale]
+    end
 ```
+
+| State | Condition | Behavior |
+|-------|-----------|----------|
+| **ONLINE** | Packet received within 15s | Live data displayed, status dot green |
+| **STALE** | Packet received but `weatherValid=0` | Metrics show placeholders, dot gold |
+| **OFFLINE** | No packet for 15s | Channel scanning active (ch 1–13 loop), dot red |
+
+**Recovery Process:**
+1. Display detects missing packets via `g_lastPktMs` timestamp
+2. Enters scanning mode, hopping channels every 1 second
+3. Locks to the first channel that receives a valid DataPacket
+4. Immediately resumes normal operation with live data
+
+**Note:** The Hub itself has no offline detection — it broadcasts continuously regardless of internet connectivity.
 
 ### UI Auto-Centering
 
@@ -329,6 +353,25 @@ Separate config file for all UI layout constants:
 
 ---
 
+## Timeout Constants
+
+All timeout values are defined in `Config.h` and shared between Hub and Display:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `HUB_OFFLINE_TIMEOUT_MS` | 15000 | Time without DataPacket before Display assumes Hub offline |
+| `STALE_DATA_TIMEOUT_MS` | 5000 | Time after which weather/room data is considered stale |
+| `WIFI_CONNECT_TIMEOUT_MS` | 15000 | Max time to wait for Wi-Fi connection |
+| `WIFI_RETRY_INTERVAL_MS` | 30000 | Backoff between Wi-Fi reconnection attempts |
+| `NTP_SYNC_TIMEOUT_DELAY_MS` | 10000 | Per-attempt timeout for NTP sync |
+| `NTP_SYNC_MAX_RETRIES` | 6 | Maximum NTP sync attempts before giving up |
+| `SCAN_HOP_INTERVAL_MS` | 1000 | Time between channel hops during Display scanning |
+| `SYNC_CHECK_INTERVAL_MS` | 1000 | RTC sync state machine check frequency |
+
+These constants are tuned for reliability — adjusting them may affect system responsiveness.
+
+---
+
 ## Design Patterns
 
 ### Non-Blocking Architecture
@@ -384,6 +427,71 @@ Separate config file for all UI layout constants:
 - Uses actual text width after `lv_obj_update_layout()`
 - Empirically-determined gap values (measured in Paint)
 - Ensures perfect centering even when text length changes (e.g., "25.0°C" vs "26.3°C")
+
+### Theme Switching Implementation
+
+The UI supports Dark/Light theme switching with persistent preferences stored in NVS.
+
+**Theme Switch Flow**
+
+```mermaid
+flowchart TD
+    User[User taps Theme button] --> Toggle[_darkTheme = !_darkTheme]
+    Toggle --> Save[_savePrefs stores bool]
+    Save --> Theme[theme pointer switches to DARK/LIGHT]
+    Theme --> Rebuild[_buildDashboard & _buildConfig called]
+    Rebuild --> Async[lv_obj_del_async deletes old screens]
+    Async --> Restore[Restore active tab via lv_tabview_set_act]
+```
+
+**Palette Structure**
+
+```cpp
+struct Palette {
+    uint32_t bg;          // Background color
+    uint32_t text;        // Primary text
+    uint32_t text_invert; // Text on colored backgrounds
+    uint32_t subtext;     // Secondary text (dimmed)
+    uint32_t dim;         // UI element backgrounds
+    uint32_t unknown;     // "Unknown" label color
+    uint32_t settings;    // Settings icon color
+    uint32_t red;         // Status dot: offline
+    uint32_t location;    // Location icon
+    uint32_t deep_orange; // Sunset icon
+    uint32_t orange;      // Minute hand
+    uint32_t gold;        // Sunrise icon
+    uint32_t green;       // Status dot: online
+    uint32_t wind;        // Wind icon
+    uint32_t online;      // Status dot: valid data
+    uint32_t pastel_blue; // Pressure icon
+    uint32_t sky_blue;    // Humidity icon
+};
+```
+
+**Async Screen Deletion**
+
+When switching themes, both dashboard and config screens are rebuilt:
+
+```cpp
+// Old screens are deleted asynchronously to prevent crashes
+if (oldDash) lv_obj_del_async(oldDash);
+if (oldConfig) lv_obj_del_async(oldConfig);
+```
+
+`lv_obj_del_async()` schedules deletion for the next LVGL tick — this prevents deletion during active rendering cycles, avoiding memory corruption.
+
+**Persistent Preferences**
+
+Theme, date format, and seconds visibility are stored in NVS:
+
+| Key | Type | Default |
+|-----|------|---------|
+| `darkTheme` | bool | `true` |
+| `dateFmtText` | bool | `true` |
+| `showSeconds` | bool | `false` |
+| `savedSSID` | string | `""` |
+| `savedPass` | string | `""` |
+| `savedNTP` | string | `pool.ntp.org` |
 
 ---
 
