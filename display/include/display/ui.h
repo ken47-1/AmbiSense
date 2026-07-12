@@ -4,6 +4,7 @@
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
 #include "config/Config.h"
+#include "config/UIConfig.h"
 #include "weather/weather_types.h"
 
 /* ============ THIRD-PARTY ============ */
@@ -38,9 +39,6 @@ struct Palette {
     uint32_t pastel_blue;
     uint32_t sky_blue;
 };
-
-/* ============ CONSTANTS ============ */
-#define CLK_SIZE 140
 
 /* =============== API =============== */
 class UI {
@@ -108,7 +106,12 @@ private:
     lv_obj_t* _swSeconds;
     lv_obj_t* _ddDateFmt;
 
+    bool        _passwordVisible;
+
     Preferences _prefs;
+    String      _savedSSID;
+    String      _savedPass;
+    String      _savedNTP;
     DateFormat  _dateFmt;
     bool        _showSeconds;
     bool        _darkTheme;
@@ -124,12 +127,14 @@ private:
     void (*_onForceSync)();
 
     static void _onSettingsBtnCb(lv_event_t* e);
-    static void _onThemeBtnCb(lv_event_t* e);
-    static void _onSecondsSwitchCb(lv_event_t* e);
-    static void _onDateFmtDropdownCb(lv_event_t* e);
     static void _onConfigSaveCb(lv_event_t* e);
     static void _onForceSyncCb(lv_event_t* e);
     static void _onBackBtnCb(lv_event_t* e);
+    static void _onShowPassCb(lv_event_t* e);
+    static void _onThemeBtnCb(lv_event_t* e);
+    static void _onSecondsSwitchCb(lv_event_t* e);
+    static void _onDateFmtDropdownCb(lv_event_t* e);
+    static void _onTabChangeCb(lv_event_t* e);
     static void _onTaEvent(lv_event_t* e);
     static void _onKbEvent(lv_event_t* e);
 };

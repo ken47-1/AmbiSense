@@ -15,50 +15,6 @@
 #include <time.h>
 
 /* =============== INTERNAL STATE =============== */
-/* ============ LAYOUT CONSTANTS ============ */
-#define SCR_W      320
-#define SCR_H      240
-#define MARGIN      10
-#define DIV_MARGIN   5
-#define CLK_SIZE   140
-#define CLK_R      (CLK_SIZE / 2)
-#define CLK_CX     (CLK_SIZE / 2)
-#define CLK_CY     (CLK_SIZE / 2)
-#define CLK_X      (SCR_W - CLK_SIZE - MARGIN + (CLK_SIZE/2 - CLK_R))
-#define CLK_Y      MARGIN
-#define VDIV_X     (CLK_X - MARGIN - 2)
-
-#define TAB_H       36
-#define TAB_W       (SCR_W / 2)
-#define KB_H        120
-#define BTN_H       36
-#define CONT_H      (SCR_H - TAB_H - BTN_H)
-
-/* Row offset adjustments */
-const int R1_X_OFFSET = -2;
-const int R2_X_OFFSET = -3;
-const int R3_X_OFFSET = -3;
-const int R4_X_OFFSET = -4;
-const int R5_X_OFFSET = -4;
-const int R6_X_OFFSET = -3;
-const int R7_X_OFFSET = -3;
-const int R8_X_OFFSET = -4;
-
-/* Row icon gaps */
-const int R1_ICON_GAP  = 5;
-const int R3_ICON_GAP  = 1;
-const int R5_HUMI_GAP  = 0;
-const int R5_PRESS_GAP = 4;
-const int R6_ICON_GAP  = 4;
-const int R7_ICON_GAP  = 4;
-const int R8_TEMP_GAP  = 0;
-const int R8_HUMI_GAP  = 0;
-
-/* Row pair gaps*/
-const int R5_PAIR_GAP  = 10;
-const int R7_PAIR_GAP  = 10;
-const int R8_PAIR_GAP  = 11;
-
 /* ============ PALETTES ============ */
 static const Palette DARK = {
     .bg          = 0x000000,
@@ -150,6 +106,9 @@ void UI::_makeVdiv(lv_obj_t* parent, int x, int y, int h, int thickness, uint32_
 /* ============ STORAGE ============ */
 void UI::_loadPrefs() {
     _prefs.begin("ui_prefs", true);
+    _savedSSID   = _prefs.getString("savedSSID", "");
+    _savedPass   = _prefs.getString("savedPass", "");
+    _savedNTP    = _prefs.getString("savedNTP", "pool.ntp.org");
     _dateFmt     = _prefs.getBool("dateFmtText", true) ? DateFormat::TEXT : DateFormat::NUMERIC;
     _showSeconds = _prefs.getBool("showSeconds", false);
     _darkTheme   = _prefs.getBool("darkTheme", true);
@@ -158,6 +117,9 @@ void UI::_loadPrefs() {
 
 void UI::_savePrefs() {
     _prefs.begin("ui_prefs", false);
+    if (_taSSID) _prefs.putString("savedSSID", lv_textarea_get_text(_taSSID));
+    if (_taPass) _prefs.putString("savedPass", lv_textarea_get_text(_taPass));
+    if (_taNTP)  _prefs.putString("savedNTP",  lv_textarea_get_text(_taNTP));
     _prefs.putBool("dateFmtText", _dateFmt == DateFormat::TEXT);
     _prefs.putBool("showSeconds", _showSeconds);
     _prefs.putBool("darkTheme", _darkTheme);
@@ -196,6 +158,7 @@ UI::UI()
     , _canvas(nullptr)
     , _statusDot(nullptr)
     , _btnSettings(nullptr)
+    , _tabviewConfig(nullptr)
     , _taSSID(nullptr)
     , _taPass(nullptr)
     , _taNTP(nullptr)
@@ -204,6 +167,11 @@ UI::UI()
     , _lblTheme(nullptr)
     , _swSeconds(nullptr)
     , _ddDateFmt(nullptr)
+    , _passwordVisible(false)
+    , _prefs()
+    , _savedSSID()
+    , _savedPass()
+    , _savedNTP()
     , _dateFmt(DateFormat::TEXT)
     , _showSeconds(false)
     , _darkTheme(true)
@@ -298,193 +266,209 @@ void UI::_buildDashboard() {
 
     /* Row 1: Weather icon + temp */
     {
-    const int r1_y     = MARGIN - 2;
+        const int r1_y     = MARGIN - 2;
 
-    _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->unknown, 0, r1_y);
-    _lblWeatherTemp = _makeLabel(_scrDashboard, "--\xC2\xB0""C", &lv_font_montserrat_32, theme->text, 0, r1_y);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int iw = lv_obj_get_width(_lblWeatherIcon);
-    int tw = lv_obj_get_width(_lblWeatherTemp);
-    int sx = (VDIV_X - (iw + R1_ICON_GAP + tw)) / 2;
-    sx += R1_X_OFFSET;
-    lv_obj_set_x(_lblWeatherIcon, sx);
-    lv_obj_set_x(_lblWeatherTemp, sx + iw + R1_ICON_GAP);
+        _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->unknown, 0, r1_y);
+        _lblWeatherTemp = _makeLabel(_scrDashboard, "--\xC2\xB0""C", &lv_font_montserrat_32, theme->text, 0, r1_y);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int iw = lv_obj_get_width(_lblWeatherIcon);
+        int tw = lv_obj_get_width(_lblWeatherTemp);
+        int sx = (VDIV_X - (iw + R1_ICON_GAP + tw)) / 2;
+        sx += R1_X_OFFSET;
+        lv_obj_set_x(_lblWeatherIcon, sx);
+        lv_obj_set_x(_lblWeatherTemp, sx + iw + R1_ICON_GAP);
     }
 
     /* Row 2: Weather condition */
     {
-    const int r2_y = 44;
+        const int r2_y = 44;
 
-    _lblCondition = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_18, theme->text,
-        MARGIN, r2_y);
-    
-    lv_label_set_long_mode(_lblCondition, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_anim_speed(_lblCondition, 15, 0);
+        lv_obj_t* condition_container = lv_obj_create(_scrDashboard);
+        lv_obj_remove_style_all(condition_container);
+        lv_obj_set_pos(condition_container, MARGIN + R2_X_OFFSET, r2_y);
+        lv_obj_set_size(condition_container, VDIV_X - (MARGIN * 2), lv_font_get_line_height(&lv_font_montserrat_18));
+        lv_obj_set_style_bg_opa(condition_container, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_clip_corner(condition_container, true, 0);
+        lv_obj_clear_flag(condition_container, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_set_style_text_align(_lblCondition, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_lblCondition, VDIV_X - (MARGIN * 2) + R2_X_OFFSET);
+        _lblCondition = lv_label_create(condition_container);
+        lv_label_set_text(_lblCondition, "Unknown");
+        lv_obj_set_style_text_font(_lblCondition, &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_color(_lblCondition, lv_color_hex(theme->text), 0);
+        lv_label_set_long_mode(_lblCondition, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_anim_speed(_lblCondition, 15, 0);
+
+        lv_obj_update_layout(_lblCondition);
+        int label_width = lv_obj_get_self_width(_lblCondition);
+        int container_width = VDIV_X - (MARGIN * 2);
+        if (label_width < container_width) {
+            lv_obj_set_x(_lblCondition, (container_width - label_width) / 2);
+        } else {
+            lv_obj_set_x(_lblCondition, 0);
+        }
     }
 
     /* Row 3: Location */
     {
-    const int r3_y     = 68;
+        const int r3_y     = 68;
 
-    _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->unknown, 0, r3_y + 0);
-    _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_16, theme->text, 0, r3_y);
-    
-    lv_label_set_long_mode(_lblLocation, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_anim_speed(_lblLocation, 15, 0);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int iw = lv_obj_get_width(_lblLocationIcon);
-    int tw = lv_obj_get_width(_lblLocation);
-    int sx = (VDIV_X - (iw + R3_ICON_GAP + tw)) / 2;
-    sx += R3_X_OFFSET;
-    lv_obj_set_x(_lblLocationIcon, sx);
-    lv_obj_set_x(_lblLocation, sx + iw + R3_ICON_GAP);
+        _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->unknown, 0, r3_y + 0);
+        _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_16, theme->text, 0, r3_y);
+        
+        lv_label_set_long_mode(_lblLocation, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_anim_speed(_lblLocation, 15, 0);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int iw = lv_obj_get_width(_lblLocationIcon);
+        int tw = lv_obj_get_width(_lblLocation);
+        int sx = (VDIV_X - (iw + R3_ICON_GAP + tw)) / 2;
+        sx += R3_X_OFFSET;
+        lv_obj_set_x(_lblLocationIcon, sx);
+        lv_obj_set_x(_lblLocation, sx + iw + R3_ICON_GAP);
     }
 
     /* Row 4: Feels like */
     {
-    const int r4_y = 90;
+        const int r4_y = 90;
 
-    _lblFeelsLike = _makeLabel(_scrDashboard, "Feels like: --\xC2\xB0""C", &lv_font_montserrat_16, theme->text,
-        MARGIN, r4_y);
-    lv_obj_set_width(_lblFeelsLike, VDIV_X - (MARGIN * 2) + R4_X_OFFSET);
-    lv_obj_set_style_text_align(_lblFeelsLike, LV_TEXT_ALIGN_CENTER, 0);
+        _lblFeelsLike = _makeLabel(_scrDashboard, "Feels like: --\xC2\xB0""C", &lv_font_montserrat_16, theme->text,
+            MARGIN, r4_y);
+        lv_obj_set_width(_lblFeelsLike, VDIV_X - (MARGIN * 2) + R4_X_OFFSET);
+        lv_obj_set_style_text_align(_lblFeelsLike, LV_TEXT_ALIGN_CENTER, 0);
     }
 
     /* Row 5: Humidity + Pressure */
     {
-    const int r5_y        = 125;
-    
-    _lblHumidIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r5_y - 2);
-    _lblHumidVal  = _makeLabel(_scrDashboard, "--%", &inconsolata_14, theme->text, 0, r5_y);
-    _lblPressIcon = _makeLabel(_scrDashboard, "\xF3\xB0\xA1\xB5", &material_design_other_20, theme->pastel_blue, 0, r5_y - 2);
-    _lblPressVal  = _makeLabel(_scrDashboard, "---- hPa", &inconsolata_14, theme->text, 0, r5_y);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int hiw = lv_obj_get_width(_lblHumidIcon);
-    int hvw = lv_obj_get_width(_lblHumidVal);
-    int piw = lv_obj_get_width(_lblPressIcon);
-    int pvw = lv_obj_get_width(_lblPressVal);
-    int total_w = hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP + piw + R5_PRESS_GAP + pvw;
-    int sx = (VDIV_X - total_w) / 2;
-    sx += R5_X_OFFSET;
-    lv_obj_set_x(_lblHumidIcon, sx);
-    lv_obj_set_x(_lblHumidVal,  sx + hiw + R5_HUMI_GAP);
-    lv_obj_set_x(_lblPressIcon, sx + hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP);
-    lv_obj_set_x(_lblPressVal,  sx + hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP + piw + R5_PRESS_GAP);
+        const int r5_y        = 125;
+        
+        _lblHumidIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r5_y - 2);
+        _lblHumidVal  = _makeLabel(_scrDashboard, "--%", &inconsolata_14, theme->text, 0, r5_y);
+        _lblPressIcon = _makeLabel(_scrDashboard, "\xF3\xB0\xA1\xB5", &material_design_other_20, theme->pastel_blue, 0, r5_y - 2);
+        _lblPressVal  = _makeLabel(_scrDashboard, "---- hPa", &inconsolata_14, theme->text, 0, r5_y);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int hiw = lv_obj_get_width(_lblHumidIcon);
+        int hvw = lv_obj_get_width(_lblHumidVal);
+        int piw = lv_obj_get_width(_lblPressIcon);
+        int pvw = lv_obj_get_width(_lblPressVal);
+        int total_w = hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP + piw + R5_PRESS_GAP + pvw;
+        int sx = (VDIV_X - total_w) / 2;
+        sx += R5_X_OFFSET;
+        lv_obj_set_x(_lblHumidIcon, sx);
+        lv_obj_set_x(_lblHumidVal,  sx + hiw + R5_HUMI_GAP);
+        lv_obj_set_x(_lblPressIcon, sx + hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP);
+        lv_obj_set_x(_lblPressVal,  sx + hiw + R5_HUMI_GAP + hvw + R5_PAIR_GAP + piw + R5_PRESS_GAP);
     }
 
     /* Row 6: Wind Speed & Direction */
     {
-    const int r6_y        = 144;
+        const int r6_y        = 144;
 
-    _lblWindIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9D", &material_design_other_20, theme->wind, 0, r6_y - 1);
-    _lblWindDirVal = _makeLabel(_scrDashboard, "-- km/h --", &inconsolata_16, theme->text, 0, r6_y);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int iw = lv_obj_get_width(_lblWindIcon);
-    int tw = lv_obj_get_width(_lblWindDirVal);
-    int sx = (VDIV_X - (iw + R6_ICON_GAP + tw)) / 2;
-    sx += R6_X_OFFSET;
-    lv_obj_set_x(_lblWindIcon, sx);
-    lv_obj_set_x(_lblWindDirVal, sx + iw + R6_ICON_GAP);
+        _lblWindIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9D", &material_design_other_20, theme->wind, 0, r6_y - 1);
+        _lblWindDirVal = _makeLabel(_scrDashboard, "-- km/h --", &inconsolata_16, theme->text, 0, r6_y);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int iw = lv_obj_get_width(_lblWindIcon);
+        int tw = lv_obj_get_width(_lblWindDirVal);
+        int sx = (VDIV_X - (iw + R6_ICON_GAP + tw)) / 2;
+        sx += R6_X_OFFSET;
+        lv_obj_set_x(_lblWindIcon, sx);
+        lv_obj_set_x(_lblWindDirVal, sx + iw + R6_ICON_GAP);
     }
 
     /* Row 7: Sunrise & Sunset */
     {
-    const int r7_y     = 165;
+        const int r7_y     = 165;
 
-    _lblSunriseIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9C", &material_design_other_20, theme->gold, 0, r7_y - 1);
-    _lblSunriseVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
-    _lblSunsetIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9B", &material_design_other_20, theme->deep_orange, 0, r7_y - 1);
-    _lblSunsetVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int riw = lv_obj_get_width(_lblSunriseIcon);
-    int rvw = lv_obj_get_width(_lblSunriseVal);
-    int siw = lv_obj_get_width(_lblSunsetIcon);
-    int svw = lv_obj_get_width(_lblSunsetVal);
-    int total_w = riw + R7_ICON_GAP + rvw + R7_PAIR_GAP + siw + R7_ICON_GAP + svw;
-    int sx = (VDIV_X - total_w) / 2;
-    sx += R7_X_OFFSET;
-    lv_obj_set_x(_lblSunriseIcon, sx);
-    lv_obj_set_x(_lblSunriseVal, sx + riw + R7_ICON_GAP);
-    lv_obj_set_x(_lblSunsetIcon, sx + riw + R7_ICON_GAP + rvw + R7_PAIR_GAP);
-    lv_obj_set_x(_lblSunsetVal, sx + riw + R7_ICON_GAP + rvw + R7_PAIR_GAP + siw + R7_ICON_GAP);
+        _lblSunriseIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9C", &material_design_other_20, theme->gold, 0, r7_y - 1);
+        _lblSunriseVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
+        _lblSunsetIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9B", &material_design_other_20, theme->deep_orange, 0, r7_y - 1);
+        _lblSunsetVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int riw = lv_obj_get_width(_lblSunriseIcon);
+        int rvw = lv_obj_get_width(_lblSunriseVal);
+        int siw = lv_obj_get_width(_lblSunsetIcon);
+        int svw = lv_obj_get_width(_lblSunsetVal);
+        int total_w = riw + R7_ICON_GAP + rvw + R7_PAIR_GAP + siw + R7_ICON_GAP + svw;
+        int sx = (VDIV_X - total_w) / 2;
+        sx += R7_X_OFFSET;
+        lv_obj_set_x(_lblSunriseIcon, sx);
+        lv_obj_set_x(_lblSunriseVal, sx + riw + R7_ICON_GAP);
+        lv_obj_set_x(_lblSunsetIcon, sx + riw + R7_ICON_GAP + rvw + R7_PAIR_GAP);
+        lv_obj_set_x(_lblSunsetVal, sx + riw + R7_ICON_GAP + rvw + R7_PAIR_GAP + siw + R7_ICON_GAP);
     }
 
     /* Row 8: Room sensors */
     {
-    const int r8_header_y = 195;
-    const int r8_y        = 217;
-    
-    _lblTempIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x94\x8F", &material_design_other_20, theme->deep_orange, 0, r8_y - 2);
-    _lblRoomTempVal = _makeLabel(_scrDashboard, "--.-\xC2\xB0""C", &inconsolata_16, theme->text, 0, r8_y);
-    _lblHumiIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r8_y - 2);
-    _lblRoomHumidVal = _makeLabel(_scrDashboard, "--.-%", &inconsolata_16, theme->text, 0, r8_y);
-    
-    lv_obj_update_layout(_scrDashboard);
-    int tiw = lv_obj_get_width(_lblTempIcon);
-    int tvw = lv_obj_get_width(_lblRoomTempVal);
-    int hiiw = lv_obj_get_width(_lblHumiIcon);
-    int hvhw = lv_obj_get_width(_lblRoomHumidVal);
-    int total_w = tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP + hiiw + R8_HUMI_GAP + hvhw;
-    int sx = (VDIV_X - total_w) / 2;
-    sx += R8_X_OFFSET;
-    lv_obj_set_x(_lblTempIcon, sx);
-    lv_obj_set_x(_lblRoomTempVal, sx + tiw + R8_TEMP_GAP);
-    lv_obj_set_x(_lblHumiIcon, sx + tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP);
-    lv_obj_set_x(_lblRoomHumidVal, sx + tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP + hiiw + R8_HUMI_GAP);
+        const int r8_header_y = 195;
+        const int r8_y        = 217;
+        
+        _lblTempIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x94\x8F", &material_design_other_20, theme->deep_orange, 0, r8_y - 2);
+        _lblRoomTempVal = _makeLabel(_scrDashboard, "--.-\xC2\xB0""C", &inconsolata_16, theme->text, 0, r8_y);
+        _lblHumiIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r8_y - 2);
+        _lblRoomHumidVal = _makeLabel(_scrDashboard, "--.-%", &inconsolata_16, theme->text, 0, r8_y);
+        
+        lv_obj_update_layout(_scrDashboard);
+        int tiw = lv_obj_get_width(_lblTempIcon);
+        int tvw = lv_obj_get_width(_lblRoomTempVal);
+        int hiiw = lv_obj_get_width(_lblHumiIcon);
+        int hvhw = lv_obj_get_width(_lblRoomHumidVal);
+        int total_w = tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP + hiiw + R8_HUMI_GAP + hvhw;
+        int sx = (VDIV_X - total_w) / 2;
+        sx += R8_X_OFFSET;
+        lv_obj_set_x(_lblTempIcon, sx);
+        lv_obj_set_x(_lblRoomTempVal, sx + tiw + R8_TEMP_GAP);
+        lv_obj_set_x(_lblHumiIcon, sx + tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP);
+        lv_obj_set_x(_lblRoomHumidVal, sx + tiw + R8_TEMP_GAP + tvw + R8_PAIR_GAP + hiiw + R8_HUMI_GAP);
 
-    _lblRoomHeader = _makeLabel(_scrDashboard, "ROOM METRICS", &inconsolata_16, theme->text,
-        MARGIN - 5, lv_obj_get_y(_lblRoomTempVal) - fh16 - 2);
+        _lblRoomHeader = _makeLabel(_scrDashboard, "ROOM METRICS", &inconsolata_16, theme->text,
+            MARGIN - 5, lv_obj_get_y(_lblRoomTempVal) - fh16 - 2);
     }
 
     /* Clock */
-    _canvas = lv_canvas_create(_scrDashboard);
-    lv_canvas_set_buffer(_canvas, _clockBuf, CLK_SIZE, CLK_SIZE, LV_IMG_CF_TRUE_COLOR);
-    lv_obj_set_style_pad_all(_canvas, 0, 0);
-    lv_obj_set_style_border_width(_canvas, 0, 0);
-    lv_obj_set_pos(_canvas, CLK_X, CLK_Y);
+    {
+        _canvas = lv_canvas_create(_scrDashboard);
+        lv_canvas_set_buffer(_canvas, _clockBuf, CLK_SIZE, CLK_SIZE, LV_IMG_CF_TRUE_COLOR);
+        lv_obj_set_style_pad_all(_canvas, 0, 0);
+        lv_obj_set_style_border_width(_canvas, 0, 0);
+        lv_obj_set_pos(_canvas, CLK_X, CLK_Y);
 
-    /* Draw initial clock at 12:00:00 */
-    lv_canvas_fill_bg(_canvas, lv_color_hex(theme->bg), LV_OPA_COVER);
-    _drawAnalogClock(0, 0, 0);
+        lv_canvas_fill_bg(_canvas, lv_color_hex(theme->bg), LV_OPA_COVER);
+        _drawAnalogClock(0, 0, 0);
 
-    _lblTime = _makeLabel(_scrDashboard, _showSeconds ? "--:--:--" : "--:--",
-        &lv_font_montserrat_24, theme->text, 170, 159);
-    lv_obj_set_style_text_align(_lblTime, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_lblTime, CLK_SIZE);
+        _lblTime = _makeLabel(_scrDashboard, _showSeconds ? "--:--:--" : "--:--",
+            &lv_font_montserrat_24, theme->text, 170, 159);
+        lv_obj_set_style_text_align(_lblTime, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(_lblTime, CLK_SIZE);
 
-    _lblDate = _makeLabel(_scrDashboard, (_dateFmt == DateFormat::TEXT) ? "-- --- ----" : "--/--/----",
-        &lv_font_montserrat_16, theme->text, 170, 189);
-    lv_obj_set_style_text_align(_lblDate, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_lblDate, CLK_SIZE);
+        _lblDate = _makeLabel(_scrDashboard, (_dateFmt == DateFormat::TEXT) ? "-- --- ----" : "--/--/----",
+            &lv_font_montserrat_16, theme->text, 170, 189);
+        lv_obj_set_style_text_align(_lblDate, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(_lblDate, CLK_SIZE);
 
-    _lblDay = _makeLabel(_scrDashboard, "------",
-        &lv_font_montserrat_14, theme->text, 170, 208);
-    lv_obj_set_style_text_align(_lblDay, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_lblDay, CLK_SIZE);
+        _lblDay = _makeLabel(_scrDashboard, "------",
+            &lv_font_montserrat_14, theme->text, 170, 208);
+        lv_obj_set_style_text_align(_lblDay, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(_lblDay, CLK_SIZE);
 
-    _statusDot = lv_obj_create(_scrDashboard);
-    lv_obj_remove_style_all(_statusDot);
-    lv_obj_set_size(_statusDot, 18, 18);
-    lv_obj_set_style_radius(_statusDot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(_statusDot, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(_statusDot, lv_color_hex(theme->dim), 0);
-    lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, (-6) - 2, (6) + 2);
+        _statusDot = lv_obj_create(_scrDashboard);
+        lv_obj_remove_style_all(_statusDot);
+        lv_obj_set_size(_statusDot, 18, 18);
+        lv_obj_set_style_radius(_statusDot, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(_statusDot, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(_statusDot, lv_color_hex(theme->dim), 0);
+        lv_obj_align(_statusDot, LV_ALIGN_TOP_RIGHT, (-6) - 2, (6) + 2);
 
-    _btnSettings = lv_label_create(_scrDashboard);
-    lv_label_set_text(_btnSettings, LV_SYMBOL_SETTINGS);
-    lv_obj_set_style_text_font(_btnSettings, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(_btnSettings, lv_color_hex(theme->settings), 0);
-    lv_obj_align(_btnSettings, LV_ALIGN_BOTTOM_RIGHT, (-6) - 3, (-6) + 1);
-    lv_obj_add_flag(_btnSettings, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(_btnSettings, _onSettingsBtnCb, LV_EVENT_CLICKED, this);
+        _btnSettings = lv_label_create(_scrDashboard);
+        lv_label_set_text(_btnSettings, LV_SYMBOL_SETTINGS);
+        lv_obj_set_style_text_font(_btnSettings, &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_color(_btnSettings, lv_color_hex(theme->settings), 0);
+        lv_obj_align(_btnSettings, LV_ALIGN_BOTTOM_RIGHT, (-6) - 3, (-6) + 1);
+        lv_obj_add_flag(_btnSettings, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(_btnSettings, _onSettingsBtnCb, LV_EVENT_CLICKED, this);
+    }
 
     Serial.println("[UI] Dashboard built.");
     lv_scr_load(_scrDashboard);
@@ -510,18 +494,19 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
     /* Row 2: Weather condition (Standalone) */
     {
         lv_label_set_text(_lblCondition, w.desc);
-        lv_obj_update_layout(_lblCondition);
-        
-        int natural_w = lv_obj_get_self_width(_lblCondition);
-        int max_w = VDIV_X - (MARGIN * 2);
 
-        if (natural_w > max_w) {
-            lv_obj_set_width(_lblCondition, max_w);
+        lv_obj_update_layout(_lblCondition);
+        int label_width = lv_obj_get_self_width(_lblCondition);
+        int container_width = VDIV_X - (MARGIN * 2);
+
+        if (label_width <= container_width) {
+            lv_obj_set_x(_lblCondition, (container_width - label_width) / 2);
+            lv_label_set_long_mode(_lblCondition, LV_LABEL_LONG_DOT);
         } else {
-            lv_obj_set_width(_lblCondition, LV_SIZE_CONTENT);
+            lv_obj_set_x(_lblCondition, 0);
+            lv_label_set_long_mode(_lblCondition, LV_LABEL_LONG_SCROLL_CIRCULAR);
+            lv_obj_set_style_anim_speed(_lblCondition, 15, 0);
         }
-        // Center based on actual resulting width
-        lv_obj_set_x(_lblCondition, (VDIV_X - lv_obj_get_width(_lblCondition)) / 2 + R2_X_OFFSET);
     }
 
     /* Row 3: Location (Icon + Text) */
@@ -546,7 +531,6 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
             lv_obj_set_width(_lblLocation, LV_SIZE_CONTENT);
         }
 
-        // Calculate sx to center the Icon + Gap + Label unit
         int sx = (VDIV_X - (iw + R3_ICON_GAP + final_tw)) / 2 + R3_X_OFFSET;
         lv_obj_set_x(_lblLocationIcon, sx);
         lv_obj_set_x(_lblLocation, sx + iw + R3_ICON_GAP);
@@ -557,7 +541,7 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
     lv_label_set_text(_lblFeelsLike, buf);
 
     /* Row 5: Humidity + Pressure */
-    snprintf(buf, sizeof(buf), pkt.weatherValid ? "%d%%" : "--%", pkt.outsideHumi);
+    snprintf(buf, sizeof(buf), pkt.weatherValid ? "%d%%" : "--%%", pkt.outsideHumi);
     lv_label_set_text(_lblHumidVal, buf);
     snprintf(buf, sizeof(buf), pkt.weatherValid ? "%d hPa" : "---- hPa", pkt.outsidePress);
     lv_label_set_text(_lblPressVal, buf);
@@ -777,12 +761,50 @@ void UI::_buildConfig() {
     /* Disable horizontal swipe */
     lv_obj_set_scroll_dir(lv_tabview_get_content(_tabviewConfig), LV_DIR_VER);
 
+    lv_obj_add_event_cb(_tabviewConfig, _onTabChangeCb, LV_EVENT_VALUE_CHANGED, this);
+
     /* Theme colors for TabView parts */
     lv_obj_set_style_bg_color(_tabviewConfig, lv_color_hex(theme->bg), 0);
     lv_obj_t* tab_btns = lv_tabview_get_tab_btns(_tabviewConfig);
     lv_obj_set_style_bg_color(tab_btns, lv_color_hex(theme->dim), 0);
     lv_obj_set_style_text_color(tab_btns, lv_color_hex(theme->text), 0);
     lv_obj_set_style_text_color(tab_btns, lv_color_hex(theme->text), LV_PART_ITEMS | LV_STATE_CHECKED);
+
+    /* Save button */
+    lv_obj_t* btnSave = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnSave, 100, 36);
+    lv_obj_align(btnSave, LV_ALIGN_BOTTOM_LEFT, 5, -5);
+    lv_obj_set_style_bg_color(btnSave, lv_color_hex(theme->sky_blue), 0);
+    lv_obj_set_style_shadow_width(btnSave, 0, 0);
+    lv_obj_t* saveLabel = lv_label_create(btnSave);
+    lv_label_set_text(saveLabel, "Save");
+    lv_obj_set_style_text_font(saveLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(saveLabel);
+    lv_obj_add_event_cb(btnSave, _onConfigSaveCb, LV_EVENT_CLICKED, this);
+
+    /* Sync NTP button */
+    lv_obj_t* btnSyncNtp = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnSyncNtp, 100, 36);
+    lv_obj_align(btnSyncNtp, LV_ALIGN_BOTTOM_MID, 0, -5);
+    lv_obj_set_style_bg_color(btnSyncNtp, lv_color_hex(theme->wind), 0);
+    lv_obj_set_style_shadow_width(btnSyncNtp, 0, 0);
+    lv_obj_t* syncLabel = lv_label_create(btnSyncNtp);
+    lv_label_set_text(syncLabel, "Sync NTP");
+    lv_obj_set_style_text_font(syncLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(syncLabel);
+    lv_obj_add_event_cb(btnSyncNtp, _onForceSyncCb, LV_EVENT_CLICKED, this);
+
+    /* Back button */
+    lv_obj_t* btnBack = lv_btn_create(_scrConfig);
+    lv_obj_set_size(btnBack, 100, 36);
+    lv_obj_align(btnBack, LV_ALIGN_BOTTOM_RIGHT, -5, -5);
+    lv_obj_set_style_bg_color(btnBack, lv_color_hex(theme->dim), 0);
+    lv_obj_set_style_shadow_width(btnBack, 0, 0);
+    lv_obj_t* backLabel = lv_label_create(btnBack);
+    lv_label_set_text(backLabel, LV_SYMBOL_LEFT " Back");
+    lv_obj_set_style_text_font(backLabel, &lv_font_montserrat_14, 0);
+    lv_obj_center(backLabel);
+    lv_obj_add_event_cb(btnBack, _onBackBtnCb, LV_EVENT_CLICKED, this);
 
     /* Wi-Fi/NTP Tab */
     lv_obj_t* tabWifiNtp = lv_tabview_add_tab(_tabviewConfig, "Wi-Fi / NTP");
@@ -798,12 +820,14 @@ void UI::_buildConfig() {
     lv_obj_set_style_pad_all(tabSettings, 0, 0);
 
     /* SSID */
+    // Label
     lv_obj_t* lblSSID = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblSSID, 5, 10);
     lv_label_set_text(lblSSID, "SSID");
     lv_obj_set_style_text_font(lblSSID, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblSSID, lv_color_hex(theme->text), 0);
 
+    // TextArea
     _taSSID = lv_textarea_create(tabWifiNtp);
     lv_obj_set_width(_taSSID, SCR_W - 20);
     lv_obj_set_height(_taSSID, 35);
@@ -812,14 +836,17 @@ void UI::_buildConfig() {
     lv_textarea_set_placeholder_text(_taSSID, "Network name");
     lv_obj_clear_flag(_taSSID, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taSSID, &lv_font_montserrat_14, 0);
+    if (_savedSSID.length() > 0) lv_textarea_set_text(_taSSID, _savedSSID.c_str());
 
     /* Password */
+    // Label
     lv_obj_t* lblPassword = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblPassword, 5, 80);
     lv_label_set_text(lblPassword, "Password");
     lv_obj_set_style_text_font(lblPassword, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblPassword, lv_color_hex(theme->text), 0);
 
+    // TextArea
     _taPass = lv_textarea_create(tabWifiNtp);
     lv_obj_set_width(_taPass, SCR_W - 20);
     lv_obj_set_height(_taPass, 35);
@@ -829,36 +856,54 @@ void UI::_buildConfig() {
     lv_textarea_set_placeholder_text(_taPass, "Password");
     lv_obj_clear_flag(_taPass, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taPass, &lv_font_montserrat_14, 0);
+    if (_savedPass.length() > 0) lv_textarea_set_text(_taPass, _savedPass.c_str());
+
+    /* Show Password button */
+    lv_obj_t* btnShowPass = lv_btn_create(tabWifiNtp);
+    lv_obj_set_size(btnShowPass, 25, 25);
+    lv_obj_align_to(btnShowPass, _taPass, LV_ALIGN_RIGHT_MID, 7, 0);
+    lv_obj_set_style_bg_color(btnShowPass, lv_color_hex(theme->dim), 0);
+    lv_obj_set_style_shadow_width(btnShowPass, 0, 0);
+    lv_obj_t* lblShowPass = lv_label_create(btnShowPass);
+    lv_label_set_text(lblShowPass, LV_SYMBOL_EYE_OPEN);
+    lv_obj_set_style_text_color(lblShowPass, lv_color_hex(theme->text), 0);
+    lv_obj_center(lblShowPass);
+    lv_obj_add_event_cb(btnShowPass, _onShowPassCb, LV_EVENT_CLICKED, this);
 
     /* NTP Server */
+    // Label
     lv_obj_t* lblNTP = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblNTP, 5, 150);
     lv_label_set_text(lblNTP, "NTP Server");
     lv_obj_set_style_text_font(lblNTP, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblNTP, lv_color_hex(theme->text), 0);
 
+    // TextArea
     _taNTP = lv_textarea_create(tabWifiNtp);
     lv_obj_set_width(_taNTP, SCR_W - 20);
     lv_obj_set_height(_taNTP, 35);
     lv_obj_set_pos(_taNTP, 5, 170);
     lv_textarea_set_one_line(_taNTP, true);
-    lv_textarea_set_text(_taNTP, "pool.ntp.org");
+    lv_textarea_set_text(_taNTP, _savedNTP.c_str());
     lv_textarea_set_placeholder_text(_taNTP, "NTP Server");
     lv_obj_clear_flag(_taNTP, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taNTP, &lv_font_montserrat_14, 0);
 
     /* Theme row */
+    // Label
     lv_obj_t* lblTheme = lv_label_create(tabSettings);
     lv_obj_set_pos(lblTheme, 10, 15);
     lv_label_set_text(lblTheme, "Theme");
     lv_obj_set_style_text_font(lblTheme, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTheme, lv_color_hex(theme->text), 0);
-
+    
+    // Toggle button
     _btnTheme = lv_btn_create(tabSettings);
     lv_obj_set_width(_btnTheme, 90);
     lv_obj_set_height(_btnTheme, 32);
     lv_obj_set_pos(_btnTheme, SCR_W - 100, 8);
     lv_obj_set_style_bg_color(_btnTheme, lv_color_hex(theme->dim), 0);
+    lv_obj_set_style_shadow_width(_btnTheme, 0, 0);
     _lblTheme = lv_label_create(_btnTheme);
     lv_label_set_text(_lblTheme, _darkTheme ? "Dark" : "Light");
     lv_obj_set_style_text_font(_lblTheme, &lv_font_montserrat_14, 0);
@@ -867,13 +912,16 @@ void UI::_buildConfig() {
     lv_obj_center(_lblTheme);
     lv_obj_add_event_cb(_btnTheme, _onThemeBtnCb, LV_EVENT_CLICKED, this);
 
+
     /* Show seconds row */
+    // Label
     lv_obj_t* lblSeconds = lv_label_create(tabSettings);
     lv_obj_set_pos(lblSeconds, 10, 60);
     lv_label_set_text(lblSeconds, "Show seconds");
     lv_obj_set_style_text_font(lblSeconds, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblSeconds, lv_color_hex(theme->text), 0);
 
+    // Switch
     _swSeconds = lv_switch_create(tabSettings);
     lv_obj_set_pos(_swSeconds, SCR_W - 60, 55);
     lv_obj_set_width(_swSeconds, 50);
@@ -882,12 +930,14 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(_swSeconds, _onSecondsSwitchCb, LV_EVENT_VALUE_CHANGED, this);
 
     /* Date format row */
+    // Label
     lv_obj_t* lblDateFmt = lv_label_create(tabSettings);
     lv_obj_set_pos(lblDateFmt, 10, 105);
     lv_label_set_text(lblDateFmt, "Date format");
     lv_obj_set_style_text_font(lblDateFmt, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblDateFmt, lv_color_hex(theme->text), 0);
 
+    // Dropdown
     _ddDateFmt = lv_dropdown_create(tabSettings);
     lv_dropdown_set_options(_ddDateFmt, "07 Mar 2024\n07/03/2024");
     lv_obj_set_width(_ddDateFmt, 130);
@@ -897,49 +947,14 @@ void UI::_buildConfig() {
     lv_obj_set_style_text_font(_ddDateFmt, &lv_font_montserrat_14, 0);
     lv_obj_add_event_cb(_ddDateFmt, _onDateFmtDropdownCb, LV_EVENT_VALUE_CHANGED, this);
 
-    /* Save button */
-    lv_obj_t* btnSave = lv_btn_create(_scrConfig);
-    lv_obj_set_size(btnSave, 100, 36);
-    lv_obj_align(btnSave, LV_ALIGN_BOTTOM_LEFT, 5, -5);
-    lv_obj_set_style_bg_color(btnSave, lv_color_hex(theme->sky_blue), 0);
-    lv_obj_t* saveLabel = lv_label_create(btnSave);
-    lv_label_set_text(saveLabel, "Save");
-    lv_obj_set_style_text_font(saveLabel, &lv_font_montserrat_14, 0);
-    lv_obj_center(saveLabel);
-    lv_obj_add_event_cb(btnSave, _onConfigSaveCb, LV_EVENT_CLICKED, this);
-
-    /* Sync NTP button */
-    lv_obj_t* btnSyncNtp = lv_btn_create(_scrConfig);
-    lv_obj_set_size(btnSyncNtp, 100, 36);
-    lv_obj_align(btnSyncNtp, LV_ALIGN_BOTTOM_MID, 0, -5);
-    lv_obj_set_style_bg_color(btnSyncNtp, lv_color_hex(theme->wind), 0);
-    lv_obj_t* syncLabel = lv_label_create(btnSyncNtp);
-    lv_label_set_text(syncLabel, "Sync NTP");
-    lv_obj_set_style_text_font(syncLabel, &lv_font_montserrat_14, 0);
-    lv_obj_center(syncLabel);
-    lv_obj_add_event_cb(btnSyncNtp, _onForceSyncCb, LV_EVENT_CLICKED, this);
-
-    /* Back button */
-    lv_obj_t* btnBack = lv_btn_create(_scrConfig);
-    lv_obj_set_size(btnBack, 100, 36);
-    lv_obj_align(btnBack, LV_ALIGN_BOTTOM_RIGHT, -5, -5);
-    lv_obj_set_style_bg_color(btnBack, lv_color_hex(theme->dim), 0);
-    lv_obj_t* backLabel = lv_label_create(btnBack);
-    lv_label_set_text(backLabel, LV_SYMBOL_LEFT " Back");
-    lv_obj_set_style_text_font(backLabel, &lv_font_montserrat_14, 0);
-    lv_obj_center(backLabel);
-    lv_obj_add_event_cb(btnBack, _onBackBtnCb, LV_EVENT_CLICKED, this);
-
     /* Keyboard Setup */
     _kbConfig = lv_keyboard_create(_scrConfig);
     lv_obj_set_size(_kbConfig, SCR_W, KB_H);
     lv_obj_align(_kbConfig, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(_kbConfig, LV_OBJ_FLAG_HIDDEN);
     
-    /* Attach the hide logic */
     lv_obj_add_event_cb(_kbConfig, _onKbEvent, LV_EVENT_ALL, NULL);
 
-    /* STOP internal auto-scrolling to prevent the overshoot conflict */
     lv_obj_t* tas[] = {_taSSID, _taPass, _taNTP};
     for(int i = 0; i < 3; i++) {
         lv_obj_clear_flag(tas[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
@@ -953,9 +968,44 @@ void UI::_onSettingsBtnCb(lv_event_t* e) {
     ui->showScreen(Screen::CONFIG);
 }
 
+void UI::_onConfigSaveCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    if (ui->_onConfigSubmit) {
+        ui->_onConfigSubmit(
+            lv_textarea_get_text(ui->_taSSID),
+            lv_textarea_get_text(ui->_taPass),
+            lv_textarea_get_text(ui->_taNTP)
+        );
+    }
+    ui->showScreen(Screen::DASHBOARD);
+}
+
+void UI::_onForceSyncCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    if (ui->_onForceSync) ui->_onForceSync();
+}
+
 void UI::_onBackBtnCb(lv_event_t* e) {
     UI* ui = (UI*)lv_event_get_user_data(e);
     ui->showScreen(Screen::DASHBOARD);
+}
+
+void UI::_onShowPassCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->_passwordVisible = !ui->_passwordVisible;
+    
+    if (ui->_passwordVisible) {
+        lv_textarea_set_password_mode(ui->_taPass, false);
+        // Update button icon to show "hidden" state
+        lv_obj_t* btn = lv_event_get_target(e);
+        lv_obj_t* label = lv_obj_get_child(btn, 0);
+        lv_label_set_text(label, LV_SYMBOL_EYE_CLOSE);
+    } else {
+        lv_textarea_set_password_mode(ui->_taPass, true);
+        lv_obj_t* btn = lv_event_get_target(e);
+        lv_obj_t* label = lv_obj_get_child(btn, 0);
+        lv_label_set_text(label, LV_SYMBOL_EYE_OPEN);
+    }
 }
 
 void UI::_onThemeBtnCb(lv_event_t* e) {
@@ -991,7 +1041,6 @@ void UI::_onThemeBtnCb(lv_event_t* e) {
     lv_scr_load(ui->_scrConfig);
     ui->_currentScreen = Screen::CONFIG;
 
-    // FIXED: Delete the old screens ASYNCHRONOUSLY to prevent the crash
     if (oldDash) lv_obj_del_async(oldDash);
     if (oldConfig) lv_obj_del_async(oldConfig);
 }
@@ -1008,40 +1057,41 @@ void UI::_onDateFmtDropdownCb(lv_event_t* e) {
     ui->_savePrefs();
 }
 
-void UI::_onConfigSaveCb(lv_event_t* e) {
+void UI::_onTabChangeCb(lv_event_t* e) {
     UI* ui = (UI*)lv_event_get_user_data(e);
-    if (ui->_onConfigSubmit) {
-        ui->_onConfigSubmit(
-            lv_textarea_get_text(ui->_taSSID),
-            lv_textarea_get_text(ui->_taPass),
-            lv_textarea_get_text(ui->_taNTP)
-        );
+    
+    if (ui->_kbConfig && !lv_obj_has_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_t* ta = lv_keyboard_get_textarea(ui->_kbConfig);
+        if (ta) {
+            lv_obj_t* tab = lv_obj_get_parent(ta);
+            lv_obj_set_style_pad_bottom(tab, 60, 0);
+            lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+        }
+        lv_obj_add_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN);
     }
-    ui->showScreen(Screen::DASHBOARD);
-}
-
-void UI::_onForceSyncCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    if (ui->_onForceSync) ui->_onForceSync();
 }
 
 void UI::_onTaEvent(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t* ta = lv_event_get_target(e);
     lv_obj_t* kb = (lv_obj_t*)lv_event_get_user_data(e);
-    UI* ui = UI::_instance;
 
     if (code == LV_EVENT_FOCUSED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
         
-        lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 130, 0);
-        lv_obj_update_layout(ui->_tabviewConfig);
+        lv_obj_t* tab = lv_obj_get_parent(ta);
+        lv_obj_set_style_pad_bottom(tab, 130, 0);
+        lv_obj_update_layout(tab);
         lv_obj_scroll_to_view(ta, LV_ANIM_ON);
     } 
     else if (code == LV_EVENT_DEFOCUSED) {
-        lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 0, 0);
-        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        if (lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_t* tab = lv_obj_get_parent(ta);
+            lv_obj_set_style_pad_bottom(tab, 60, 0);
+            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+        }
     }
 }
 
@@ -1052,10 +1102,12 @@ void UI::_onKbEvent(lv_event_t* e) {
     if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         lv_obj_t* ta = lv_keyboard_get_textarea(kb);
         if (ta) {
-            /* Reset the runway on the tab */
-            lv_obj_set_style_pad_bottom(lv_obj_get_parent(ta), 60, 0);
-            /* Hide the cursor */
-            lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+            if (!lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
+                lv_obj_t* tab = lv_obj_get_parent(ta);
+                lv_obj_set_style_pad_bottom(tab, 60, 0);
+                lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+                lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+            }
         }
         lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
     }

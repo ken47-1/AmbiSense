@@ -1,225 +1,270 @@
 # AmbiSense
 
-![AmbiSense Display](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260514_014947.jpg?raw=true)
-![AmbiSense Hub](https://github.com/ken47-1/AmbiSense/blob/main/IMG_20260514_015018.jpg?raw=true)
+![Display Dashboard showing weather, room metrics, and time](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true)
 
-Real-time ambient weather and room sensor display. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates, and broadcasts to ESP32-2432S028 Display over ESP-NOW. Dashboard shows temperature, humidity, pressure, wind, sunrise/sunset, plus local room metrics from DHT22. Theme toggle, optional seconds display, configurable date format. Auto-centering UI ensures perfect alignment even when values change length.
+![Hub Hardware](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_133749.jpg?raw=true)
 
-## Hardware
+Real-time ambient weather and room sensor display system. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates via OpenStreetMap, and broadcasts to an ESP32-2432S028 Display over ESP-NOW. The dashboard auto-centers all UI elements for perfect alignment regardless of value length.
 
-### Hub
-- ESP32 (WROOM-32)
-- DHT22 (temperature/humidity)
-- DS3231 (real-time clock)
-- Wi-Fi antenna
-- USB power or battery
+## Features
 
-### Display
-- ESP32-2432S028 CYD (320×240 IPS TFT, capacitive touch)
-- USB power or barrel jack (5V)
+- **Live Weather** — Temperature, humidity, pressure, wind speed/direction, sunrise/sunset via Open-Meteo API (free, no key required)
+- **Room Metrics** — DHT22 temperature and humidity
+- **Auto-Centering UI** — Every row recalculates position based on actual text width
+- **Dual Themes** — Dark/Light with persistent preferences in NVS
+- **Configurable** — Wi-Fi credentials, NTP server, date format, show/hide seconds
+- **Offline Resilient** — Shows placeholders (`--°C`, `Unknown`) when Hub is unreachable
+- **ESP-NOW Communication** — Low-latency (~50ms), no router required, auto-channel sync
+- **Reverse Geocoding** — City name resolved from GPS coordinates via Nominatim (no API key)
+
+## UI Features
+
+### Dual Themes
+Toggle between Dark and Light themes in the settings screen. Preferences persist across reboots via NVS.
+
+| Dark Theme | Light Theme |
+|------------|-------------|
+| ![Dark Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true) | ![Light Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141519.jpg?raw=true) |
+
+### Config Screen
+- **Show Password** — Toggle password visibility with eye icon
+- **Persistent Credentials** — SSID, Password, NTP server saved to NVS
+- **Auto-Scroll** — Text fields scroll into view when focused
+- **Tab Change** — Keyboard automatically hides when switching tabs
+
+### Dashboard Auto-Centering
+Every UI row recalculates position on each update using actual text widths and empirically-determined gaps. Ensures perfect centering even when values change length (e.g., "25.0°C" → "26.3°C").
+
+| Config Screen | Settings Tab |
+|---------------|--------------|
+| ![Wi-Fi/NTP configuration screen with SSID, Password, NTP Server fields](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141450.jpg?raw=true) | ![Settings tab showing Theme toggle, Show seconds switch, Date format dropdown](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141457.jpg?raw=true) |
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Hub["Hub (ESP32 WROOM-32)"]
+        direction LR
+        RTC[DS3231 RTC] --> Network
+        DHT[DHT22 Sensor] --> Network
+        Weather[Weather API<br>Open-Meteo] --> Network
+        Location[LocationResolver<br>Nominatim] --> Network
+        Network[Network Module<br>ESP-NOW Broadcast]
+    end
+
+    subgraph Display["Display (ESP32-2432S028 CYD)"]
+        direction LR
+        ESPNOW[ESP-NOW RX] --> UI[UI Module<br>LVGL Dashboard]
+        UI --> LCD[(320×240 IPS TFT)]
+        Touch[Touch Input<br>XPT2046] --> UI
+        Preferences[NVS Preferences] --> UI
+    end
+
+    Hub -->|DataPacket<br>every 250ms| Display
+    Display -->|ConfigPacket<br>on demand| Hub
+```
 
 ## Quick Start
 
-### 1. Flash Hub
+### 1. Configure Hub Location
 
-```bash
+Edit `hub/include/config/LocationConfig.h`:
+
+```
+constexpr float LOCATION_LAT = 40.7128;   // Your latitude
+constexpr float LOCATION_LON = -74.0060;  // Your longitude
+```
+
+### 2. Flash Hub
+
+```
 cd hub/
 pio run -t upload
 pio device monitor -b 115200
 ```
 
 Expected output:
+
 ```
 [MAIN] AmbiSense Hub booting...
 [RTC] DS3231 INIT
 [GEO] LocationResolver INIT
 [NET] ESP-NOW INIT
-[NET] Config loaded: SSID: YOUR_SSID_HERE NTP: asia.pool.ntp.org
-[NET] Connecting to YOUR_SSID_HERE...
+[NET] Config loaded: SSID: YOUR_SSID_HERE
 [MAIN] Boot complete.
-
 [NET] Connected to IP: 192.168.x.xxx
-[RTC] NTP sync starting...
-[RTC] NTP sync done (UTC): 2026-05-14 01:52:11
-[RTC] Local time: 01:52:11
 [GEO] Location resolved: New York
-[WEATHER] HTTP code: 200 (attempt 1/3)
 [WEATHER] Data fetched successfully
 ```
 
-**Note:** First boot uses placeholder credentials (`YOUR_SSID_HERE`). Configure real credentials via Display settings screen.
+### 3. Flash Display
 
-### 2. Flash Display
-
-```bash
+```
 cd display/
 pio run -t upload
 pio device monitor -b 115200
 ```
 
 Expected output:
+
 ```
 [MAIN] AmbiSense Display booting...
 [DISP] DisplayManager initialized.
-[NET] Scanning on ALL Channels...
 [NET] ESP-NOW INIT
-[UI] Dashboard built.
 [UI] Initialized.
 [MAIN] Boot complete.
 [NET] LOCKED to Hub Channel: 4
-[NET] Connection Restored in 3180ms on Channel 4
-[NET] Hub MAC learned
 ```
 
-Both auto-discover over ESP-NOW. Display locks to Hub's Wi-Fi channel automatically.
+## Hardware Requirements
 
-## Usage
+### Hub
 
-### Dashboard
+- ESP32 (WROOM-32)
+- DHT22 (temperature/humidity sensor)
+- DS3231 (real-time clock)
+- Wi-Fi antenna
 
-Real-time display shows:
-- Outdoor weather (temperature, condition, feels like)
-- Humidity and pressure
-- Wind speed and direction
-- Sunrise/sunset times
-- Room temperature and humidity (from DHT22)
-- Digital clock with date/day
+### Display
 
-Bottom-right status dot indicates connection:
-- **Green** — Hub online, weather valid
-- **Gold** — Hub online, weather stale (no internet)
-- **Red** — Hub offline (timestamp invalid)
-
-### Settings
-
-Tap **⚙️** (bottom-right) to configure:
-
-**Wi-Fi/NTP Tab**
-- Update Hub Wi-Fi credentials
-- Set NTP server (default: `pool.ntp.org`)
-- Force NTP sync (corrects RTC time)
-
-**Settings Tab**
-- Dark/Light theme (saved, persists across reboots)
-- Show/Hide seconds (saved)
-- Date format: Text (07 Mar 2024) or Numeric (07/03/2024) (saved)
-
-All changes persist across power cycles.
-
-## UI Features
-
-### TabView Configuration Screen
-- Clean tab bar with active/inactive color states (gray indicator line removed)
-- Horizontal swipe disabled to prevent accidental tab switching
-- Vertical scrolling preserved for content overflow
-- Keyboard popup with dynamic bottom padding — text fields automatically scroll into view
-
-### Theme Switching
-- Dark/Light themes with full UI reconstruction
-- Active tab restored after theme change
-- Synchronized with LVGL engine defaults for textareas and switches
-- Asynchronous screen deletion prevents crash on rebuild
-
-### Dashboard Auto-Centering
-Every UI row recalculates position on each update using actual text widths and empirically-determined gaps (measured in Paint). Ensures perfect centering even when values change length (e.g., "25.0°C" → "26.3°C").
-
-## Offline Behavior
-
-Hub offline detection uses packet timestamp:
-- Display shows latest data if timestamp valid
-- Shows placeholders (`--°C`, `Unknown`) if timestamp invalid
-- Status dot turns red immediately
-- No data loss; recovers automatically when Hub returns
+- ESP32-2432S028 CYD (320×240 IPS TFT, capacitive touch)
 
 ## Configuration
 
-### Shared (`include/config/Config.h` in both projects)
+### Via Display Settings (Recommended)
 
-| Setting | Value | Description |
-|---------|-------|-------------|
-| `GMT_OFFSET_SEC` | 7*3600 | UTC+7 (Bangkok) |
-| `DAYLIGHT_OFFSET_SEC` | 0 | No DST |
-| `WEATHER_INTERVAL_MS` | 1,800,000 | 30 minutes |
-| `BROADCAST_INTERVAL_MS` | 250 | 4Hz ESP-NOW |
-| `DHT_INTERVAL_MS` | 2000 | 2 seconds |
+Tap **⚙️** (bottom-right) to configure:
 
-### Hub (`hub/include/config/LocationConfig.h`)
+| Setting | Description |
+|---|---|
+| Wi-Fi SSID | Hub network name |
+| Password | Hub network password |
+| NTP Server | Time server (default: `pool.ntp.org`) |
+| Theme | Dark / Light (persists) |
+| Show Seconds | Toggle clock seconds (persists) |
+| Date Format | Text (07 Mar 2024) / Numeric (07/03/2024) (persists) |
 
-```cpp
-constexpr float LOCATION_LAT = 40.6972846;   // Your latitude
-constexpr float LOCATION_LON = -74.1443122;  // Your longitude
+All settings persist across reboots via NVS.
+
+### Manual Configuration
+
+| File | Setting | Default |
+|---|---|---|
+| `Config.h` | `GMT_OFFSET_SEC` | `7*3600` (UTC+7) |
+| `Config.h` | `WEATHER_INTERVAL_MS` | `30*60*1000` |
+| `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` | Required |
+| `UIConfig.h` | Screen layout constants | 320×240 |
+
+## Packet Protocol
+
+**DataPacket** (Hub → Display, ~100 bytes):
+
+| Field | Size | Description |
+|---|---|---|
+| `type` | 1 | `PACKET_TYPE_DATA` (0x01) |
+| `seq` | 1 | Rolling sequence number |
+| `channel` | 1 | Wi-Fi channel for auto-sync |
+| `timestamp` | 4 | Unix timestamp from RTC |
+| `locationValid` | 1 | 1 = city name valid |
+| `city` | 33 | Location name |
+| `weatherValid` | 1 | 1 = weather data valid |
+| `weatherCode` | 1 | WMO weather code |
+| `outsideTemp` | 4 | °C |
+| `apparentTemp` | 4 | "Feels like" °C |
+| `outsideHumi` | 1 | % |
+| `outsidePress` | 2 | hPa |
+| `windSpeed` | 4 | km/h |
+| `windDirection` | 2 | Degrees (0–360) |
+| `sunrise` | 8 | HH:MM |
+| `sunset` | 8 | HH:MM |
+| `roomValid` | 1 | 1 = room data valid |
+| `roomTemp` | 4 | °C |
+| `roomHumi` | 4 | % |
+
+## Status Indicators
+
+| Dot Color | Meaning |
+|---|---|
+| 🟢 Green | Hub online, weather valid |
+| 🟡 Gold | Hub online, weather stale (no internet) |
+| 🔴 Red | Hub offline |
+
+## Project Structure
+
 ```
-
-Hub automatically resolves city name via OpenStreetMap Nominatim (no API key). Retry logic with configurable interval and max attempts.
-
-### Display (`display/include/config/HardwareConfig.h`)
-
-- TFT SPI pins (CS, DC, CLK, MOSI, MISO)
-- Touch SPI pins (CS, CLK, MOSI, MISO)
-- Backlight GPIO (14)
-
-## Architecture
-
-**Hub Modules**
-- `Network` — Non-blocking WiFi state machine, ESP-NOW broadcast, NVS config
-- `Weather` — Open-Meteo API (FreeRTOS task, 30min refresh)
-- `LocationResolver` — Nominatim reverse geocoding with retry logic (non-blocking)
-- `Sensors` — DHT22 polling (2s)
-- `RTCManager` — DS3231 + NTP sync (UTC storage, gmtime)
-
-**Display Modules**
-- `Network` — ESP-NOW RX, channel sync, offline detection
-- `UI` — LVGL dashboard with auto-centering, TabView config screen, dual themes
-- `DisplayManager` — LVGL init, touch handling, frame control
-
-**Packet Structure** (`DataPacket`, ~100 bytes)
-- Location: city name, validity flag
-- Weather: temp, humidity, pressure, wind, sunrise/sunset, WMO code
-- Room: temp, humidity, validity flag
-- System: timestamp, sequence, channel, WiFi status
-
-See `ARCHITECTURE.md` for complete protocol details.
+AmbiSense/
+├── display/               # ESP32-2432S028 Display firmware
+│   ├── include/
+│   │   ├── config/        # Config, HardwareConfig, UIConfig
+│   │   ├── display/       # display_manager.h, ui.h
+│   │   ├── fonts/         # LVGL font headers
+│   │   ├── network/       # network.h
+│   │   └── weather/       # weather_types.h
+│   ├── src/
+│   │   ├── display/       # display_manager.cpp, ui.cpp
+│   │   ├── fonts/         # Font bitmaps (.c)
+│   │   ├── network/       # network.cpp
+│   │   ├── weather/       # weather_types.cpp
+│   │   └── main.cpp
+│   ├── lv_conf.h
+│   ├── platformio.ini
+│   └── User_Setup.h
+├── hub/                   # ESP32 Hub firmware
+│   ├── include/
+│   │   ├── config/        # Config, HardwareConfig, LocationConfig
+│   │   ├── network/       # network.h
+│   │   ├── sensors/       # sensors.h
+│   │   ├── services/
+│   │   │   ├── location/  # location_resolver.h
+│   │   │   └── weather/   # weather.h
+│   │   └── time/          # rtc_manager.h
+│   ├── src/
+│   │   ├── network/       # network.cpp
+│   │   ├── sensors/       # sensors.cpp
+│   │   ├── services/
+│   │   │   ├── location/  # location_resolver.cpp
+│   │   │   └── weather/   # weather.cpp
+│   │   ├── time/          # rtc_manager.cpp
+│   │   └── main.cpp
+│   └── platformio.ini
+├── docs/
+│   ├── Code_Layout_Standard.md
+│   └── MDI_Symbols.md
+├── AmbiSense_ARCHITECTURE.md
+└── README.md
+```
 
 ## Troubleshooting
 
 | Symptom | Likely Fix |
-|---------|-------------|
-| Display shows offline (red dot) | Check Hub power and serial output; both on same 2.4GHz band |
-| Weather not updating | Verify Hub Wi-Fi; check Open-Meteo API in serial logs |
-| Time incorrect | Hub needs NTP sync (check serial); verify timezone in Config.h |
-| City shows "Unknown" | Check LOCATION_LAT/LON; Hub needs internet at boot; wait for retry |
-| UI elements misaligned | Auto-centering handles this; update gap values if needed |
-| Config not saving | NVS may need erase: `pio run -t erase` |
-| Keyboard covers text fields | Dynamic padding should handle this; if not, check `_onTaEvent` callback |
-| Theme switch crashes | Should be fixed with async deletion; update if still occurs |
+|---|---|
+| Red dot | Check Hub power; both on same 2.4GHz band |
+| "Unknown" city | Hub needs internet at boot; check `LOCATION_LAT`/`LON` |
+| Time incorrect | NTP sync required; check `GMT_OFFSET_SEC` |
+| Config not saving | `pio run -t erase` |
+| Keyboard covers text fields | Dynamic padding should handle this; check `_onTaEvent` callback |
+| Theme switch crashes | Async deletion fix applied; update if still occurs |
 
 ## Performance
 
 | Metric | Value |
-|--------|-------|
+|---|---|
 | ESP-NOW latency | <50ms |
 | Broadcast rate | 250ms (4Hz) |
 | Sensor polling | 2 seconds |
 | Weather refresh | 30 minutes |
-| Display FPS | ~60 |
+| Display FPS | ~60 FPS |
 | Power (total) | ~2W |
-
-## Hardware Notes
-
-- **Display**: 320×240 IPS, capacitive touch (XPT2046), SPI interface
-- **RTC**: DS3231 ±2ppm (~5 seconds/year drift without NTP)
-- **DHT22 Range**: -40°C to +80°C, ±2°C accuracy
-- **Weather API**: Open-Meteo (free, no key) — edit `Weather.cpp` for OpenWeatherMap
 
 ## Customization
 
-**Timezone**: Edit `GMT_OFFSET_SEC` in `Config.h`
-**Weather interval**: Change `WEATHER_INTERVAL_MS`
-**Theme colors**: Modify `DARK` / `LIGHT` palettes in `UI.cpp`
-**Location**: Update `LOCATION_LAT` / `LOCATION_LON` in `LocationConfig.h`
-**TabView height**: Change second parameter in `lv_tabview_create(..., 40)` (currently 40px)
-
-Credentials load from NVS at runtime — no hardcoding needed after first config via Display settings.
+| Aspect | File | Setting |
+|---|---|---|
+| Timezone | `Config.h` | `GMT_OFFSET_SEC` |
+| Weather interval | `Config.h` | `WEATHER_INTERVAL_MS` |
+| Theme colors | `ui.cpp` | `DARK` / `LIGHT` palettes |
+| Location | `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` |
+| UI Layout | `UIConfig.h` | Screen size, margins, gaps |
 
 ## Links
 
@@ -231,3 +276,4 @@ Credentials load from NVS at runtime — no hardcoding needed after first config
 ## Credits
 
 Developed with human oversight and AI-assisted code generation.
+

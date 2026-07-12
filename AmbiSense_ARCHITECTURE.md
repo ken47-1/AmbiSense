@@ -21,7 +21,7 @@ Both devices are independent; can develop/test separately. Communication via ESP
 
 ### Modules
 
-**Network** (`include/Network.h` / `src/Network.cpp`)
+**Network** (`include/network/network.h` / `src/network/network.cpp`)
 - ESP-NOW RX callback
 - Parses DataPacket from Hub
 - Channel auto-sync: locks to Hub's Wi-Fi channel on first packet
@@ -30,7 +30,7 @@ Both devices are independent; can develop/test separately. Communication via ESP
 - Sends CmdPacket for commands (e.g., force NTP sync)
 - Loads/saves credentials from NVS (Preferences API, namespace `"ambisense"`)
 
-**Weather** (`include/Weather.h` / `src/Weather.cpp`)
+**Weather** (`include/services/weather/weather.h` / `src/services/weather/weather.cpp`)
 - Fetches current weather from Open-Meteo API (free, no API key)
 - Handles retries with exponential backoff (initial: 2s, max 3 retries)
 - Caches weather data; refreshes on 30-minute interval (`WEATHER_INTERVAL_MS`)
@@ -38,20 +38,20 @@ Both devices are independent; can develop/test separately. Communication via ESP
 - Runs in FreeRTOS task (background thread) to avoid blocking
 - Thread-safe access via mutex
 
-**LocationResolver** (`include/LocationResolver.h` / `src/LocationResolver.cpp`)
-- NEW: Resolves city name from GPS coordinates using Nominatim (OpenStreetMap) reverse geocoding
+**LocationResolver** (`include/services/location/location_resolver.h` / `src/services/location/location_resolver.cpp`)
+- Resolves city name from GPS coordinates using Nominatim (OpenStreetMap) reverse geocoding
 - Fetches once at boot, caches result
 - Falls back to "Unknown" if lookup fails
 - Thread-safe, no API key required
 - Uses OpenStreetMap's Nominatim API with proper User-Agent header
 
-**Sensors** (`include/Sensors.h` / `src/Sensors.cpp`)
+**Sensors** (`include/sensors/sensors.h` / `src/sensors/sensors.cpp`)
 - Polls DHT22 every 2 seconds (`DHT_INTERVAL_MS`)
 - Reads temperature, humidity
 - Caches last valid reading; marks invalid if read fails
 - Validity check: `!isnan(temp) && !isnan(humidity)`
 
-**RTCManager** (`include/RTCManager.h` / `src/RTCManager.cpp`)
+**RTCManager** (`include/time/rtc_manager.h` / `src/time/rtc_manager.cpp`)
 - Interfaces with DS3231 real-time clock
 - Provides accurate timestamp independent of WiFi
 - NTP sync state machine: `IDLE → SYNCING → DONE / FAILED`
@@ -89,7 +89,7 @@ DataPacket assembly in Network::update()
 └── Status flags (WiFi connected, data valid, channel, seq)
     ↓
 ESP-NOW broadcast (every 250ms, broadcast address)
-    ↓w
+    ↓
 Display RX
 ```
 
@@ -105,7 +105,7 @@ uint8_t  channel           // Wi-Fi channel (for Display auto-sync)
 uint8_t  wifiConnected     // 1 = Hub on Wi-Fi, 0 = offline
 uint32_t timestamp         // Unix timestamp from RTC
 
-// Location (NEW)
+// Location
 uint8_t  locationValid     // 1 = city name valid, 0 = unknown
 char     city[33]          // City name (e.g., "Bangkok")
 
@@ -150,14 +150,14 @@ float    roomHumi          // %
 
 ### Modules
 
-**DisplayManager** (`include/DisplayManager.h` / `src/DisplayManager.cpp`)
+**DisplayManager** (`include/display/display_manager.h` / `src/display/display_manager.cpp`)
 - LVGL initialization and lifecycle
 - TFT_eSPI driver for LCD rendering
 - XPT2046 touch input handling
 - Provides `isTouched()` and `getTouch()` for UI event handling
 - Frame rate: ~60 FPS via LVGL
 
-**Network** (`include/Network.h` / `src/Network.cpp`)
+**Network** (`include/network/network.h` / `src/network/network.cpp`)
 - ESP-NOW RX callback
 - Parses DataPacket from Hub
 - Channel auto-sync: locks to Hub's Wi-Fi channel on first packet
@@ -166,13 +166,13 @@ float    roomHumi          // %
 - Sends CmdPacket for commands (e.g., force NTP sync)
 - Loads/saves credentials from NVS (Preferences API, namespace `"ambisense"`)
 
-**UI** (`include/UI.h` / `src/UI.cpp`)
-- LVGL v9.5 dashboard rendering (320×240 IPS TFT)
+**UI** (`include/display/ui.h` / `src/display/ui.cpp`)
+- LVGL v8.4.0 dashboard rendering (320×240 IPS TFT)
 - **Auto-centering**: All UI rows recalculate positions on every update based on actual text width using empirically-determined gap values
 - Two screens:
   - **DASHBOARD**: Weather card, room sensors, time/date, status dot
   - **CONFIG**: Two tabs
-    - Tab 1: Wi-Fi/NTP input fields, force sync button
+    - Tab 1: Wi-Fi/NTP input fields with persistent credentials, force sync button, show password toggle
     - Tab 2: Dark/light theme toggle, show/hide seconds, date format dropdown
 - Dual themes (dark/light) with persistent palettes
 - Non-blocking updates; all rendering deferred to `update()` calls
@@ -180,7 +180,13 @@ float    roomHumi          // %
 - Palettes: DARK (default) and LIGHT
 - **Fonts**: Montserrat (various sizes) + Inconsolata (14px, 16px) + Material Design icons
 
-**WeatherTypes** (`include/WeatherTypes.h` / `src/WeatherTypes.cpp`)
+**UI Features**
+- **Show Password** — Toggle password visibility with eye icon (open/closed)
+- **Persistent Credentials** — SSID, Password, NTP server saved to NVS
+- **Auto-Scroll** — Text fields scroll into view when focused
+- **Tab Change** — Keyboard automatically hides when switching tabs
+
+**WeatherTypes** (`include/weather/weather_types.h` / `src/weather/weather_types.cpp`)
 - Shared struct definitions (WeatherInfo, UNKNOWN_WEATHER)
 - Weather enum and helper functions (icon lookup, WMO code mapping)
 - Wind direction conversion (degrees to cardinal direction)
@@ -206,6 +212,7 @@ UI::update() called every 100ms with DataPacket&
 ├── Select weather icon (based on WMO code)
 ├── Auto-center each row:
 │   ├── Weather icon + temp
+│   ├── Weather condition (centered, marquee if too long)
 │   ├── Location icon + city
 │   ├── Humidity + pressure pair
 │   ├── Wind speed + direction
@@ -224,16 +231,17 @@ LCD (320×240 IPS)
 
 All rows in `_updateDashboard()` recalculate positions on every update:
 
-| Row | Components | Gap Values (empirical, from Paint) |
-|-----|-----------|-------------------------------------|
-| 1 | Weather icon + temp | icon_gap = 6 |
-| 3 | Location icon + city | icon_gap = 2 |
-| 5 | Humidity icon + value + spacer + Pressure icon + value | humi_gap = 0, pair_gap = 10, press_gap = 4 |
-| 6 | Wind icon + value | wind_gap = 4 |
-| 7 | Sunrise icon + value + spacer + Sunset icon + value | sun_gap = 4, sun_pair_gap = 10 |
-| 8 | Room temp icon + value + spacer + Room humidity icon + value | temp_gap = 0, room_pair_gap = 11, hum_gap = 0 |
+| Row | Components | Gap Values (from UIConfig.h) |
+|-----|-----------|------------------------------|
+| 1 | Weather icon + temp | `R1_ICON_GAP = 5`, `R1_X_OFFSET = -2` |
+| 2 | Weather condition | Container-based, auto-marquee if text too long |
+| 3 | Location icon + city | `R3_ICON_GAP = 1`, `R3_X_OFFSET = -3` |
+| 5 | Humidity icon + value + spacer + Pressure icon + value | `R5_HUMI_GAP = 0`, `R5_PAIR_GAP = 10`, `R5_PRESS_GAP = 4`, `R5_X_OFFSET = -4` |
+| 6 | Wind icon + value | `R6_ICON_GAP = 4`, `R6_X_OFFSET = -3` |
+| 7 | Sunrise icon + value + spacer + Sunset icon + value | `R7_ICON_GAP = 4`, `R7_PAIR_GAP = 10`, `R7_X_OFFSET = -3` |
+| 8 | Room temp icon + value + spacer + Room humidity icon + value | `R8_TEMP_GAP = 0`, `R8_PAIR_GAP = 11`, `R8_HUMI_GAP = 0`, `R8_X_OFFSET = -4` |
 
-Position formula: `sx = (VDIV_X - total_width) / 2`
+Position formula: `sx = (VDIV_X - total_width) / 2 + offset`
 
 ### UI State
 
@@ -283,8 +291,6 @@ Position formula: `sx = (VDIV_X - total_width) / 2`
 
 ## Configuration Files
 
-Each project has three config files:
-
 ### Shared: `Config.h`
 Protocol definitions, intervals, packet types (shared by both Hub and Display)
 
@@ -312,6 +318,15 @@ Protocol definitions, intervals, packet types (shared by both Hub and Display)
 - `LOCATION_NAME` — Display string (e.g., "Bangkok") — fallback if geocoding fails
 - Note: LocationResolver uses Nominatim API; no API key required
 
+### UI Layout: `UIConfig.h`
+
+Separate config file for all UI layout constants:
+- Screen dimensions (320×240)
+- Clock size and position
+- Row offsets (empirical centering values)
+- Row gaps (empirical spacing values)
+- Derived constants (CLK_X, CLK_Y, VDIV_X)
+
 ---
 
 ## Design Patterns
@@ -334,7 +349,7 @@ Protocol definitions, intervals, packet types (shared by both Hub and Display)
 
 - Hub: credentials in namespace `"ambisense"`
 - Display: credentials in namespace `"ambisense"`
-- Display: UI preferences (theme, seconds, date format) in namespace `"ui_prefs"`
+- Display: UI preferences (theme, seconds, date format, saved SSID/password/NTP) in namespace `"ui_prefs"`
 - Loaded once on boot, updated on config change
 - Persistent across power cycles
 
@@ -356,14 +371,14 @@ Protocol definitions, intervals, packet types (shared by both Hub and Display)
 - Prevents blocking main loop on network latency
 - Thread-safe access via mutex
 
-### Reverse Geocoding (NEW)
+### Reverse Geocoding
 
 - LocationResolver fetches city name once at boot from OpenStreetMap Nominatim
 - Cached forever (city name doesn't change)
 - No repeated API calls
 - Falls back gracefully to "Unknown" if API fails
 
-### Auto-Centering UI (NEW)
+### Auto-Centering UI
 
 - Each UI row recalculates position on every update
 - Uses actual text width after `lv_obj_update_layout()`
@@ -425,8 +440,12 @@ Protocol definitions, intervals, packet types (shared by both Hub and Display)
 
 **UI elements misaligned**
 - Auto-centering recalculates on each update
-- Gap values are empirical (measured in Paint); adjust constants in `_updateDashboard()` if needed
+- Gap values are empirical (measured in Paint); adjust constants in `UIConfig.h` if needed
 - Ensure `_buildDashboard()` and `_updateDashboard()` use identical gap values
+
+**Keyboard covers text fields**
+- Dynamic padding should handle this
+- Check `_onTaEvent` callback if padding isn't restored properly
 
 ---
 
@@ -437,4 +456,7 @@ Protocol definitions, intervals, packet types (shared by both Hub and Display)
 - UI renders live with dual themes and auto-centering
 - LocationResolver fetches city name from GPS coordinates
 - Offline mode shows placeholders when Hub timestamp invalid
+- Show Password button with eye icon toggle
+- SSID, Password, NTP server persist across reboots
+- Tab change hides keyboard automatically
 - Ready for deployment
