@@ -1,5 +1,7 @@
 # AmbiSense
 
+*This project was developed with AI-assisted code generation and human oversight.*
+
 ![Display Dashboard showing weather, room metrics, and time](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true)
 
 ![Hub Hardware](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_133749.jpg?raw=true)
@@ -146,7 +148,7 @@ Expected output:
 Tap **⚙️** (bottom-right) to configure:
 
 | Setting | Description |
-|---|---|
+|---------|-------------|
 | Wi-Fi SSID | Hub network name |
 | Password | Hub network password |
 | NTP Server | Time server (default: `pool.ntp.org`) |
@@ -159,7 +161,7 @@ All settings persist across reboots via NVS.
 ### Manual Configuration
 
 | File | Setting | Default |
-|---|---|---|
+|------|---------|---------|
 | `Config.h` | `GMT_OFFSET_SEC` | `7*3600` (UTC+7) |
 | `Config.h` | `WEATHER_INTERVAL_MS` | `30*60*1000` |
 | `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` | Required |
@@ -170,7 +172,7 @@ All settings persist across reboots via NVS.
 **DataPacket** (Hub → Display, ~100 bytes):
 
 | Field | Size | Description |
-|---|---|---|
+|-------|------|-------------|
 | `type` | 1 | `PACKET_TYPE_DATA` (0x01) |
 | `seq` | 1 | Rolling sequence number |
 | `channel` | 1 | Wi-Fi channel for auto-sync |
@@ -194,7 +196,7 @@ All settings persist across reboots via NVS.
 ## Status Indicators
 
 | Dot Color | Meaning |
-|---|---|
+|-----------|---------|
 | 🟢 Green | Hub online, weather valid |
 | 🟡 Gold | Hub online, weather stale (no internet) |
 | 🔴 Red | Hub offline |
@@ -247,7 +249,7 @@ AmbiSense/
 ## Troubleshooting
 
 | Symptom | Likely Fix |
-|---|---|
+|---------|------------|
 | Red indicator dot | Check Hub power; both on same 2.4GHz band |
 | "Unknown" city | Hub needs internet at boot; check `LOCATION_LAT`/`LON` |
 | Time incorrect | NTP sync required; check `GMT_OFFSET_SEC` |
@@ -258,7 +260,7 @@ AmbiSense/
 ## Performance
 
 | Metric | Value |
-|---|---|
+|--------|-------|
 | ESP-NOW latency | <50ms |
 | Broadcast rate | 250ms (4Hz) |
 | Sensor polling | 2 seconds |
@@ -269,7 +271,7 @@ AmbiSense/
 ## Customization
 
 | Aspect | File | Setting |
-|---|---|---|
+|--------|------|---------|
 | Timezone | `Config.h` | `GMT_OFFSET_SEC` |
 | Weather interval | `Config.h` | `WEATHER_INTERVAL_MS` |
 | Theme colors | `ui.cpp` | `DARK` / `LIGHT` palettes |
@@ -294,7 +296,6 @@ When contributing, follow the visual hierarchy scale defined in the standard doc
 - [Open-Meteo API](https://open-meteo.com/)
 - [Nominatim Geocoding](https://nominatim.openstreetmap.org/)
 
-## Credits
+## License
 
-Developed with human oversight and AI-assisted code generation.
-
+MIT
