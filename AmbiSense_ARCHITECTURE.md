@@ -134,7 +134,7 @@ float    roomHumi          // %
 - ESP32-2432S028 CYD (Cheap Yellow Display)
   - Built-in ESP32
   - 2.8" 320×240 ILI9341 IPS TFT LCD
-  - XPT2046 capacitive touch controller
+  - XPT2046 resistive touch controller
   - SPI interface
 - USB power or barrel jack (5V)
 

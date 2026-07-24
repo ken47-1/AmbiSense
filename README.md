@@ -139,7 +139,7 @@ Expected output:
 
 ### Display
 
-- ESP32-2432S028 CYD (320×240 IPS TFT, capacitive touch)
+- ESP32-2432S028 CYD (320×240 IPS TFT, XPT2046 resistive touch)
 
 ## Configuration
 
