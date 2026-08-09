@@ -13,6 +13,28 @@ This document defines the required structure and conventions for source files in
 - Classes own hardware; other modules borrow references or pointers, never own hardware
 - No hidden global state unless explicitly documented
 - Omit a section entirely if it has no content
+- Always use braces for `if`, `for`, `while`, `do-while` statements, even for single lines
+- Each `Print::print()` / `Print::println()` call goes on its own line
+- No chained print calls on the same line
+- All `if`/`else if`/`else` blocks have braces on new lines:
+
+✅ Correct:
+```cpp
+if (fault_active) {
+    return;
+}
+
+Comms::print.print(">>> ");
+Comms::print.print(fault_to_string(reason));
+Comms::print.println(" <<<");
+```
+
+❌ Incorrect:
+```cpp
+if (fault_active) return;
+
+Comms::print.print(">>> "); Comms::print.print(fault_to_string(reason)); Comms::print.println(" <<<");
+```
 
 --- 
 
@@ -34,7 +56,7 @@ All files must use the following comment scale to represent the logical tree. Se
 ## Header File Layout (`.h`)
 
 ```cpp
-/* ==================== ModuleName.h ==================== */
+/* ==================== module_name.h ==================== */
 #pragma once
 
 /* =============== INCLUDES =============== */
@@ -61,8 +83,8 @@ namespace ModuleName {
 ## Source File Layout (`.cpp`)
 
 ```cpp
-/* ==================== ModuleName.cpp ==================== */
-#include "path/ModuleName.h"
+/* ==================== module_name.cpp ==================== */
+#include "path/module_name.h"
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
