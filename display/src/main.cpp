@@ -3,6 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
+#include "config/DisplayConfig.h"
 #include "display/display_manager.h"
 #include "network/network.h"
 #include "display/ui.h"
@@ -65,9 +66,10 @@ void loop() {
     display.update();
     network.update();
 
+    uint32_t now = millis();
     static uint32_t lastUIUpdate = 0;
-    if (millis() - lastUIUpdate >= 100) {
-        lastUIUpdate = millis();
+    if (now - lastUIUpdate >= 100) {
+        lastUIUpdate = now;
         
         DataPacket localPkt;
         if (g_pktMutex && xSemaphoreTake(g_pktMutex, portMAX_DELAY)) {

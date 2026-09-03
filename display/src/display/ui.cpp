@@ -1,8 +1,10 @@
 /* ==================== ui.cpp ==================== */
 #include "display/ui.h"
+#include "display/display_manager.h"
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
+#include "config/DisplayConfig.h"
 #include "fonts/inconsolata_14.h"
 #include "fonts/inconsolata_16.h"
 #include "fonts/material_design_other_20.h"
@@ -106,20 +108,22 @@ void UI::_makeVdiv(lv_obj_t* parent, int x, int y, int h, int thickness, uint32_
 /* ============ STORAGE ============ */
 void UI::_loadPrefs() {
     _prefs.begin("ui_prefs", true);
-    _savedSSID   = _prefs.getString("savedSSID", "");
-    _savedPass   = _prefs.getString("savedPass", "");
-    _savedNTP    = _prefs.getString("savedNTP", "pool.ntp.org");
-    _dateFmt     = _prefs.getBool("dateFmtText", true) ? DateFormat::TEXT : DateFormat::NUMERIC;
-    _showSeconds = _prefs.getBool("showSeconds", false);
-    _darkTheme   = _prefs.getBool("darkTheme", true);
+    _savedSSID       = _prefs.getString("savedSSID", "");
+    _savedPass       = _prefs.getString("savedPass", "");
+    _savedNTP        = _prefs.getString("savedNTP", "pool.ntp.org");
+    _savedBrightness = _prefs.getUChar("brightness", 80);
+    _darkTheme       = _prefs.getBool("darkTheme", true);
+    _showSeconds     = _prefs.getBool("showSeconds", false);
+    _dateFmt         = _prefs.getBool("dateFmtText", true) ? DateFormat::TEXT : DateFormat::NUMERIC;
     _prefs.end();
 }
 
 void UI::_savePrefs() {
     _prefs.begin("ui_prefs", false);
-    if (_taSSID) _prefs.putString("savedSSID", lv_textarea_get_text(_taSSID));
-    if (_taPass) _prefs.putString("savedPass", lv_textarea_get_text(_taPass));
-    if (_taNTP)  _prefs.putString("savedNTP",  lv_textarea_get_text(_taNTP));
+    if (_taSSID) { _prefs.putString("savedSSID", lv_textarea_get_text(_taSSID)); }
+    if (_taPass) { _prefs.putString("savedPass", lv_textarea_get_text(_taPass)); }
+    if (_taNTP)  { _prefs.putString("savedNTP",  lv_textarea_get_text(_taNTP)); }
+    if (_sliderBrightness) { _prefs.putUChar("brightness", lv_slider_get_value(_sliderBrightness)); }
     _prefs.putBool("dateFmtText", _dateFmt == DateFormat::TEXT);
     _prefs.putBool("showSeconds", _showSeconds);
     _prefs.putBool("darkTheme", _darkTheme);
@@ -816,6 +820,8 @@ void UI::_buildConfig() {
 
     /* Settings Tab */
     lv_obj_t* tabSettings = lv_tabview_add_tab(_tabviewConfig, "Settings");
+    lv_obj_set_scrollbar_mode(tabSettings, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_add_flag(tabSettings, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_style_bg_color(tabSettings, lv_color_hex(theme->bg), 0);
     lv_obj_set_style_pad_all(tabSettings, 0, 0);
 
@@ -829,8 +835,7 @@ void UI::_buildConfig() {
 
     // TextArea
     _taSSID = lv_textarea_create(tabWifiNtp);
-    lv_obj_set_width(_taSSID, SCR_W - 20);
-    lv_obj_set_height(_taSSID, 35);
+    lv_obj_set_size(_taSSID, SCR_W - 20, 35);
     lv_obj_set_pos(_taSSID, 5, 30);
     lv_textarea_set_one_line(_taSSID, true);
     lv_textarea_set_placeholder_text(_taSSID, "Network name");
@@ -848,8 +853,7 @@ void UI::_buildConfig() {
 
     // TextArea
     _taPass = lv_textarea_create(tabWifiNtp);
-    lv_obj_set_width(_taPass, SCR_W - 20);
-    lv_obj_set_height(_taPass, 35);
+    lv_obj_set_size(_taPass, SCR_W - 20, 35);
     lv_obj_set_pos(_taPass, 5, 100);
     lv_textarea_set_one_line(_taPass, true);
     lv_textarea_set_password_mode(_taPass, true);
@@ -880,8 +884,7 @@ void UI::_buildConfig() {
 
     // TextArea
     _taNTP = lv_textarea_create(tabWifiNtp);
-    lv_obj_set_width(_taNTP, SCR_W - 20);
-    lv_obj_set_height(_taNTP, 35);
+    lv_obj_set_size(_taNTP, SCR_W - 20, 35);
     lv_obj_set_pos(_taNTP, 5, 170);
     lv_textarea_set_one_line(_taNTP, true);
     lv_textarea_set_text(_taNTP, _savedNTP.c_str());
@@ -889,19 +892,43 @@ void UI::_buildConfig() {
     lv_obj_clear_flag(_taNTP, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taNTP, &lv_font_montserrat_14, 0);
 
+    /* Brightness Row */
+    // Label
+    lv_obj_t* lblBright = lv_label_create(tabSettings);
+    lv_obj_set_pos(lblBright, 10, 15);
+    lv_label_set_text(lblBright, "Brightness");
+    lv_obj_set_style_text_font(lblBright, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblBright, lv_color_hex(theme->text), 0);
+
+    // Slider
+    _sliderBrightness = lv_slider_create(tabSettings);
+    lv_obj_set_size(_sliderBrightness, 150, 16);
+    lv_obj_set_pos(_sliderBrightness, SCR_W - 160, 15);
+    lv_slider_set_range(_sliderBrightness, BRIGHTNESS_MIN_PERCENT, BRIGHTNESS_MAX_PERCENT);
+    lv_slider_set_value(_sliderBrightness, DisplayManager::getBrightness(), LV_ANIM_OFF);
+    lv_obj_add_event_cb(_sliderBrightness, _onBrightnessSliderCb, LV_EVENT_VALUE_CHANGED, this);
+
+    // Current value
+    _lblBrightnessVal = lv_label_create(tabSettings);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", DisplayManager::getBrightness());
+    lv_label_set_text(_lblBrightnessVal, buf);
+    lv_obj_set_style_text_font(_lblBrightnessVal, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_lblBrightnessVal, lv_color_hex(theme->text), 0);
+    lv_obj_align_to(_lblBrightnessVal, _sliderBrightness, LV_ALIGN_OUT_LEFT_MID, -5, 0);
+
     /* Theme row */
     // Label
     lv_obj_t* lblTheme = lv_label_create(tabSettings);
-    lv_obj_set_pos(lblTheme, 10, 15);
+    lv_obj_set_pos(lblTheme, 10, 60);
     lv_label_set_text(lblTheme, "Theme");
     lv_obj_set_style_text_font(lblTheme, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTheme, lv_color_hex(theme->text), 0);
     
     // Toggle button
     _btnTheme = lv_btn_create(tabSettings);
-    lv_obj_set_width(_btnTheme, 90);
-    lv_obj_set_height(_btnTheme, 32);
-    lv_obj_set_pos(_btnTheme, SCR_W - 100, 8);
+    lv_obj_set_size(_btnTheme, 64, 32);
+    lv_obj_set_pos(_btnTheme, SCR_W - 74, 52);
     lv_obj_set_style_bg_color(_btnTheme, lv_color_hex(theme->dim), 0);
     lv_obj_set_style_shadow_width(_btnTheme, 0, 0);
     _lblTheme = lv_label_create(_btnTheme);
@@ -912,27 +939,25 @@ void UI::_buildConfig() {
     lv_obj_center(_lblTheme);
     lv_obj_add_event_cb(_btnTheme, _onThemeBtnCb, LV_EVENT_CLICKED, this);
 
-
     /* Show seconds row */
     // Label
     lv_obj_t* lblSeconds = lv_label_create(tabSettings);
-    lv_obj_set_pos(lblSeconds, 10, 60);
+    lv_obj_set_pos(lblSeconds, 10, 105);
     lv_label_set_text(lblSeconds, "Show seconds");
     lv_obj_set_style_text_font(lblSeconds, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblSeconds, lv_color_hex(theme->text), 0);
 
     // Switch
     _swSeconds = lv_switch_create(tabSettings);
-    lv_obj_set_pos(_swSeconds, SCR_W - 60, 55);
-    lv_obj_set_width(_swSeconds, 50);
-    lv_obj_set_height(_swSeconds, 26);
+    lv_obj_set_pos(_swSeconds, SCR_W - 60, 100);
+    lv_obj_set_size(_swSeconds, 50, 24);
     if (_showSeconds) lv_obj_add_state(_swSeconds, LV_STATE_CHECKED);
     lv_obj_add_event_cb(_swSeconds, _onSecondsSwitchCb, LV_EVENT_VALUE_CHANGED, this);
 
     /* Date format row */
     // Label
     lv_obj_t* lblDateFmt = lv_label_create(tabSettings);
-    lv_obj_set_pos(lblDateFmt, 10, 105);
+    lv_obj_set_pos(lblDateFmt, 10, 150);
     lv_label_set_text(lblDateFmt, "Date format");
     lv_obj_set_style_text_font(lblDateFmt, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblDateFmt, lv_color_hex(theme->text), 0);
@@ -940,12 +965,19 @@ void UI::_buildConfig() {
     // Dropdown
     _ddDateFmt = lv_dropdown_create(tabSettings);
     lv_dropdown_set_options(_ddDateFmt, "07 Mar 2024\n07/03/2024");
-    lv_obj_set_width(_ddDateFmt, 130);
-    lv_obj_set_height(_ddDateFmt, 36);
-    lv_obj_set_pos(_ddDateFmt, SCR_W - 140, 98);
+    lv_obj_set_size(_ddDateFmt, 130, 36);
+    lv_obj_set_pos(_ddDateFmt, SCR_W - 140, 140);
     lv_dropdown_set_selected(_ddDateFmt, _dateFmt == DateFormat::TEXT ? 0 : 1);
     lv_obj_set_style_text_font(_ddDateFmt, &lv_font_montserrat_14, 0);
     lv_obj_add_event_cb(_ddDateFmt, _onDateFmtDropdownCb, LV_EVENT_VALUE_CHANGED, this);
+
+    /* Spacer to force scrollbar */
+    lv_obj_t* spacer = lv_obj_create(tabSettings);
+    lv_obj_remove_style_all(spacer);
+    lv_obj_set_size(spacer, 1, 30);   // Extra height to exceed container
+    lv_obj_set_pos(spacer, 0, 179);
+    lv_obj_set_style_bg_opa(spacer, LV_OPA_TRANSP, 0);
+    lv_obj_clear_flag(spacer, LV_OBJ_FLAG_CLICKABLE);
 
     /* Keyboard Setup */
     _kbConfig = lv_keyboard_create(_scrConfig);
@@ -1006,6 +1038,15 @@ void UI::_onShowPassCb(lv_event_t* e) {
         lv_obj_t* label = lv_obj_get_child(btn, 0);
         lv_label_set_text(label, LV_SYMBOL_EYE_OPEN);
     }
+}
+
+void UI::_onBrightnessSliderCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    int val = lv_slider_get_value(ui->_sliderBrightness);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", val);
+    lv_label_set_text(ui->_lblBrightnessVal, buf);
+    DisplayManager::setBrightness(val);
 }
 
 void UI::_onThemeBtnCb(lv_event_t* e) {

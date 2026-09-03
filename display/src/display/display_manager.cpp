@@ -14,6 +14,7 @@ lv_disp_drv_t       DisplayManager::_disp_drv;
 lv_disp_draw_buf_t  DisplayManager::_draw_buf;
 lv_indev_drv_t      DisplayManager::_indev_drv;
 lv_color_t*         DisplayManager::_buf = nullptr;
+uint8_t             DisplayManager::_currentPercent = 20;
 
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
@@ -31,6 +32,12 @@ void DisplayManager::begin() {
     _touchSpi.begin(TOUCH_CLK, TOUCH_MISO, TOUCH_MOSI, TOUCH_CS);
     _touch.begin(_touchSpi);
     _touch.setRotation(3);
+
+    /* ---- Backlight PWM ---- */
+    ledcSetup(0, 5000, 8);
+    ledcAttachPin(TFT_BL, 0);
+    _applyBrightness(_currentPercent);
+    Serial.printf("[DISP] Backlight initialized: %d%%\n", _currentPercent);
 
     lv_init();
 
@@ -86,4 +93,22 @@ void DisplayManager::_touchReadCb(lv_indev_drv_t* drv, lv_indev_data_t* data) {
     } else {
         data->state = LV_INDEV_STATE_REL;
     }
+}
+
+/* ============ BRIGHTNESS ============ */
+void DisplayManager::_applyBrightness(uint8_t percent) {
+    if (percent < BRIGHTNESS_MIN_PERCENT) percent = BRIGHTNESS_MIN_PERCENT;
+    if (percent > BRIGHTNESS_MAX_PERCENT) percent = BRIGHTNESS_MAX_PERCENT;
+    uint32_t duty = map(percent, 0, 100, 0, 255);
+    ledcWrite(0, duty);
+    _currentPercent = percent;
+}
+
+void DisplayManager::setBrightness(uint8_t percent) {
+    _currentPercent = percent;
+    _applyBrightness(percent);
+}
+
+uint8_t DisplayManager::getBrightness() {
+    return _currentPercent;
 }

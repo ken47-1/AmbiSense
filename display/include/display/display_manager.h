@@ -18,12 +18,18 @@ public:
     void begin();
     void update();
 
-    bool isTouched()   { return _touch.touched(); }
+    /* ---- Brightness Control ---- */
+    static void setBrightness(uint8_t percent);  // 0-100
+    static uint8_t getBrightness();
+
+    /* ---- Touch ---- */
+    bool isTouched() { return _touch.touched(); }
     TS_Point getTouch() { return _touch.getPoint(); }
 
 private:
     static void _flushCb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* px);
     static void _touchReadCb(lv_indev_drv_t* drv, lv_indev_data_t* data);
+    static void _applyBrightness(uint8_t percent);
 
     static TFT_eSPI            _tft;
     static SPIClass            _touchSpi;
@@ -32,4 +38,5 @@ private:
     static lv_disp_draw_buf_t  _draw_buf;
     static lv_indev_drv_t      _indev_drv;
     static lv_color_t*         _buf;
+    static uint8_t             _currentPercent;
 };

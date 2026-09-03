@@ -562,6 +562,7 @@ Theme, date format, and seconds visibility are stored in NVS:
 - Both Hub and Display fully functional
 - Clock synchronizes via NTP, sensors read and transmit
 - UI renders live with dual themes and auto-centering
+- Brightness slider with live preview and NVS persistence
 - LocationResolver fetches city name from GPS coordinates
 - Offline mode shows placeholders when Hub timestamp invalid
 - Show Password button with eye icon toggle

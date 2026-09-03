@@ -13,26 +13,43 @@ This document defines the required structure and conventions for source files in
 - Classes own hardware; other modules borrow references or pointers, never own hardware
 - No hidden global state unless explicitly documented
 - Omit a section entirely if it has no content
-- Always use braces for `if`, `for`, `while`, `do-while` statements, even for single lines
+- Use braces for multi‑line `if`, `for`, `while`, `do-while` bodies.
+  - Single‑line guard clauses (e.g., `if (condition) return;`) are allowed without braces.
+- For multi‑line blocks, brace placement (same line or new line) must be consistent within the same file.
 - Each `Print::print()` / `Print::println()` call goes on its own line
 - No chained print calls on the same line
 - All `if`/`else if`/`else` blocks have braces on new lines:
 
-✅ Correct:
-```cpp
-if (fault_active) {
-    return;
-}
-
-Comms::print.print(">>> ");
-Comms::print.print(fault_to_string(reason));
-Comms::print.println(" <<<");
-```
-
-❌ Incorrect:
+✅ Correct (single‑line guard, braces optional):
 ```cpp
 if (fault_active) return;
+```
 
+✅ Correct (multi‑line block, braces required):
+```cpp
+if (fault_active) {
+    fault_active = true;
+    fault_reason = reason;
+    MotorControl::hard_stop();
+    return;
+}
+```
+
+❌ Incorrect (line-broken single statement; invites bugs):
+```cpp
+if (fault_active)
+    return
+```
+
+❌ Incorrect (multi‑line body without braces):
+```cpp
+if (fault_active) 
+    fault_active = true;
+    fault_reason = reason;  // ← This runs OUTSIDE the if!
+```
+
+❌ Incorrect (chained print calls):
+```cpp
 Comms::print.print(">>> "); Comms::print.print(fault_to_string(reason)); Comms::print.println(" <<<");
 ```
 

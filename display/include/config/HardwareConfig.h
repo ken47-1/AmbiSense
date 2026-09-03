@@ -2,6 +2,13 @@
 /* AmbiSense Display hardware pin definitions and touchscreen configuration */
 #pragma once
 
+/* =============== INCLUDES =============== */
+/* ============ PROJECT ============ */
+#include "config/DisplayConfig.h"
+
+/* ============ CORE ============ */
+#include <stdint.h>
+
 /* =============== DISPLAY =============== */
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240

@@ -6,6 +6,8 @@
 
 ![Hub Hardware](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_133749.jpg?raw=true)
 
+> **Note:** Images of the Settings UI are outdated. I wil update them soon, sorry!
+
 Real-time ambient weather and room sensor display system. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates via OpenStreetMap, and broadcasts to an ESP32-2432S028 Display over ESP-NOW. The dashboard auto-centers all UI elements for perfect alignment regardless of value length.
 
 ## Features
@@ -40,6 +42,7 @@ Toggle between Dark and Light themes in the settings screen. Preferences persist
 
 ### Config Screen
 - **Show Password** — Toggle password visibility with eye icon
+- **Brightness Slider** — Adjust backlight brightness with live preview
 - **Persistent Credentials** — SSID, Password, NTP server saved to NVS
 - **Auto-Scroll** — Text fields scroll into view when focused
 - **Tab Change** — Keyboard automatically hides when switching tabs
@@ -152,6 +155,7 @@ Tap **⚙️** (bottom-right) to configure:
 | Wi-Fi SSID | Hub network name |
 | Password | Hub network password |
 | NTP Server | Time server (default: `pool.ntp.org`) |
+| Brightness | Backlight brightness (persists) |
 | Theme | Dark / Light (persists) |
 | Show Seconds | Toggle clock seconds (persists) |
 | Date Format | Text (07 Mar 2024) / Numeric (07/03/2024) (persists) |
@@ -274,6 +278,7 @@ AmbiSense/
 |--------|------|---------|
 | Timezone | `Config.h` | `GMT_OFFSET_SEC` |
 | Weather interval | `Config.h` | `WEATHER_INTERVAL_MS` |
+| Brightness limits | `DisplayConfig.h` | `BRIGHTNESS_MIN_PERCENT` / `BRIGHTNESS_MAX_PERCENT` |
 | Theme colors | `ui.cpp` | `DARK` / `LIGHT` palettes |
 | Location | `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` |
 | UI Layout | `UIConfig.h` | Screen size, margins, gaps |

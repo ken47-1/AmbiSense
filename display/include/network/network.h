@@ -3,7 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/PacketProtocol.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <WiFi.h>

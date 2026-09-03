@@ -3,7 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/PacketProtocol.h"
 #include "config/UIConfig.h"
 #include "weather/weather_types.h"
 
@@ -101,10 +101,13 @@ private:
     lv_obj_t* _taPass;
     lv_obj_t* _taNTP;
     lv_obj_t* _kbConfig;
+    lv_obj_t* _lblBrightnessVal;
+    lv_obj_t* _sliderBrightness;
     lv_obj_t* _btnTheme;
     lv_obj_t* _lblTheme;
     lv_obj_t* _swSeconds;
     lv_obj_t* _ddDateFmt;
+    lv_obj_t* _lblDateFmt;
 
     bool        _passwordVisible;
 
@@ -112,9 +115,10 @@ private:
     String      _savedSSID;
     String      _savedPass;
     String      _savedNTP;
-    DateFormat  _dateFmt;
-    bool        _showSeconds;
+    uint8_t     _savedBrightness;
     bool        _darkTheme;
+    bool        _showSeconds;
+    DateFormat  _dateFmt;    
     Screen      _currentScreen;
 
     uint32_t _lastWeatherValidMs;
@@ -131,6 +135,7 @@ private:
     static void _onForceSyncCb(lv_event_t* e);
     static void _onBackBtnCb(lv_event_t* e);
     static void _onShowPassCb(lv_event_t* e);
+    static void _onBrightnessSliderCb(lv_event_t* e);
     static void _onThemeBtnCb(lv_event_t* e);
     static void _onSecondsSwitchCb(lv_event_t* e);
     static void _onDateFmtDropdownCb(lv_event_t* e);

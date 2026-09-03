@@ -1,4 +1,5 @@
 /* ==================== UIConfig.h ==================== */
+/* AmbiSense Display UI configuration */
 #pragma once
 
 /* =============== SCREEN LAYOUT =============== */

@@ -3,7 +3,8 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/PacketProtocol.h"
+#include "config/DisplayConfig.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>
