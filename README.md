@@ -1,39 +1,36 @@
 # AmbiSense
 
-*This project was developed with AI-assisted code generation and human oversight.*
+Real-time ambient weather and room sensor display system. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates via OpenStreetMap, and broadcasts to an ESP32-2432S028 Display over ESP-NOW. The dashboard auto-centers all UI elements for perfect alignment regardless of value length.
 
-![Display Dashboard showing weather, room metrics, and time](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true)
+![Display Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true)
 
 ![Hub Hardware](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_133749.jpg?raw=true)
 
-> **Note:** Images of the Settings UI are outdated. I wil update them soon, sorry!
-
-Real-time ambient weather and room sensor display system. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates via OpenStreetMap, and broadcasts to an ESP32-2432S028 Display over ESP-NOW. The dashboard auto-centers all UI elements for perfect alignment regardless of value length.
-
 ## Features
 
-- **Live Weather** — Temperature, humidity, pressure, wind speed/direction, sunrise/sunset via Open-Meteo API (free, no key required)
-- **Room Metrics** — DHT22 temperature and humidity
-- **Auto-Centering UI** — Every row recalculates position based on actual text width
-- **Dual Themes** — Dark/Light with persistent preferences in NVS
-- **Configurable** — Wi-Fi credentials, NTP server, date format, show/hide seconds
-- **Offline Resilient** — Shows placeholders (`--°C`, `Unknown`) when Hub is unreachable
-- **ESP-NOW Communication** — Low-latency (~50ms), no router required, auto-channel sync
-- **Reverse Geocoding** — City name resolved from GPS coordinates via Nominatim (no API key)
+- Live Weather — Temperature, humidity, pressure, wind speed/direction, sunrise/sunset via Open-Meteo API (free, no key required)
+- Room Metrics — DHT22 temperature and humidity
+- Auto-Centering UI — Every row recalculates position based on actual text width
+- Dual Themes — Dark/Light with persistent preferences in NVS
+- Configurable — Wi-Fi credentials, NTP server, date format, show/hide seconds
+- Offline Resilient — Shows placeholders when Hub is unreachable
+- ESP-NOW Communication — Low-latency, no router required, auto-channel sync
+- Reverse Geocoding — City name resolved from GPS coordinates via Nominatim (no API key)
 
 ## Prerequisites
 
 Before building and flashing, ensure you have:
 
-- [PlatformIO IDE](https://platformio.org/install) (VS Code extension or CLI)
-- ESP32 USB drivers ([CP210x](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers) or [CH340](https://www.wch.cn/download/CH341SER_EXE.html) depending on your board)
+- PlatformIO IDE (VS Code extension or CLI)
+- ESP32 USB drivers (CP210x or CH340 depending on your board)
 - USB cable (data-capable, not just charging)
 
-The project uses PlatformIO's dependency management — all required libraries will be automatically downloaded during the first build.
+The project uses PlatformIO's dependency management — all required libraries download automatically during the first build.
 
 ## UI Features
 
 ### Dual Themes
+
 Toggle between Dark and Light themes in the settings screen. Preferences persist across reboots via NVS.
 
 | Dark Theme | Light Theme |
@@ -41,18 +38,20 @@ Toggle between Dark and Light themes in the settings screen. Preferences persist
 | ![Dark Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true) | ![Light Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141519.jpg?raw=true) |
 
 ### Config Screen
-- **Show Password** — Toggle password visibility with eye icon
-- **Brightness Slider** — Adjust backlight brightness with live preview
-- **Persistent Credentials** — SSID, Password, NTP server saved to NVS
-- **Auto-Scroll** — Text fields scroll into view when focused
-- **Tab Change** — Keyboard automatically hides when switching tabs
+
+- Show Password — Toggle password visibility with eye icon
+- Brightness Slider — Adjust backlight brightness with live preview
+- Persistent Credentials — SSID, Password, NTP server saved to NVS
+- Auto-Scroll — Text fields scroll into view when focused
+- Tab Change — Keyboard automatically hides when switching tabs
 
 ### Dashboard Auto-Centering
-Every UI row recalculates position on each update using actual text widths and empirically-determined gaps. Ensures perfect centering even when values change length (e.g., "25.0°C" → "26.3°C").
+
+Every UI row recalculates position on each update using actual text widths and empirically-determined gaps. Ensures perfect centering even when values change length.
 
 | Config Screen | Settings Tab |
 |---------------|--------------|
-| ![Wi-Fi/NTP configuration screen with SSID, Password, NTP Server fields](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141450.jpg?raw=true) | ![Settings tab showing Theme toggle, Show seconds switch, Date format dropdown](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141457.jpg?raw=true) |
+| ![Wi-Fi/NTP configuration](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141450.jpg?raw=true) | ![Settings tab](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141457.jpg?raw=true) |
 
 ## Architecture
 
@@ -70,7 +69,7 @@ flowchart TB
     subgraph Display["Display (ESP32-2432S028 CYD)"]
         direction LR
         ESPNOW[ESP-NOW RX] --> UI[UI Module<br>LVGL Dashboard]
-        UI --> LCD[(320×240 IPS TFT)]
+        UI --> LCD[(320x240 IPS TFT)]
         Touch[Touch Input<br>XPT2046] --> UI
         Preferences[NVS Preferences] --> UI
     end
@@ -142,19 +141,19 @@ Expected output:
 
 ### Display
 
-- ESP32-2432S028 CYD (320×240 IPS TFT, XPT2046 resistive touch)
+- ESP32-2432S028 CYD (320x240 IPS TFT, XPT2046 resistive touch)
 
 ## Configuration
 
 ### Via Display Settings (Recommended)
 
-Tap **⚙️** (bottom-right) to configure:
+Tap the Settings icon (bottom-right) to configure:
 
 | Setting | Description |
-|---------|-------------|
+|---|---|
 | Wi-Fi SSID | Hub network name |
 | Password | Hub network password |
-| NTP Server | Time server (default: `pool.ntp.org`) |
+| NTP Server | Time server (default: pool.ntp.org) |
 | Brightness | Backlight brightness (persists) |
 | Theme | Dark / Light (persists) |
 | Show Seconds | Toggle clock seconds (persists) |
@@ -165,45 +164,45 @@ All settings persist across reboots via NVS.
 ### Manual Configuration
 
 | File | Setting | Default |
-|------|---------|---------|
-| `Config.h` | `GMT_OFFSET_SEC` | `7*3600` (UTC+7) |
-| `Config.h` | `WEATHER_INTERVAL_MS` | `30*60*1000` |
-| `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` | Required |
-| `UIConfig.h` | Screen layout constants | 320×240 |
+|---|---|---|
+| Config.h | GMT_OFFSET_SEC | 7 * 3600 (UTC+7) |
+| Config.h | WEATHER_INTERVAL_MS | 30 * 60 * 1000 |
+| LocationConfig.h | LOCATION_LAT / LOCATION_LON | Required |
+| UIConfig.h | Screen layout constants | 320x240 |
 
 ## Packet Protocol
 
-**DataPacket** (Hub → Display, ~100 bytes):
+**DataPacket** (Hub -> Display, ~100 bytes):
 
 | Field | Size | Description |
-|-------|------|-------------|
-| `type` | 1 | `PACKET_TYPE_DATA` (0x01) |
-| `seq` | 1 | Rolling sequence number |
-| `channel` | 1 | Wi-Fi channel for auto-sync |
-| `timestamp` | 4 | Unix timestamp from RTC |
-| `locationValid` | 1 | 1 = city name valid |
-| `city` | 33 | Location name |
-| `weatherValid` | 1 | 1 = weather data valid |
-| `weatherCode` | 1 | WMO weather code |
-| `outsideTemp` | 4 | °C |
-| `apparentTemp` | 4 | "Feels like" °C |
-| `outsideHumi` | 1 | % |
-| `outsidePress` | 2 | hPa |
-| `windSpeed` | 4 | km/h |
-| `windDirection` | 2 | Degrees (0–360) |
-| `sunrise` | 8 | HH:MM |
-| `sunset` | 8 | HH:MM |
-| `roomValid` | 1 | 1 = room data valid |
-| `roomTemp` | 4 | °C |
-| `roomHumi` | 4 | % |
+|---|---|---|
+| type | 1 | PACKET_TYPE_DATA (0x01) |
+| seq | 1 | Rolling sequence number |
+| channel | 1 | Wi-Fi channel for auto-sync |
+| timestamp | 4 | Unix timestamp from RTC |
+| locationValid | 1 | 1 = city name valid |
+| city | 33 | Location name |
+| weatherValid | 1 | 1 = weather data valid |
+| weatherCode | 1 | WMO weather code |
+| outsideTemp | 4 | Degrees Celsius |
+| apparentTemp | 4 | Feels like temperature |
+| outsideHumi | 1 | Percent |
+| outsidePress | 2 | hPa |
+| windSpeed | 4 | km/h |
+| windDirection | 2 | Degrees 0-360 |
+| sunrise | 8 | HH:MM |
+| sunset | 8 | HH:MM |
+| roomValid | 1 | 1 = room data valid |
+| roomTemp | 4 | Degrees Celsius |
+| roomHumi | 4 | Percent |
 
 ## Status Indicators
 
 | Dot Color | Meaning |
-|-----------|---------|
-| 🟢 Green | Hub online, weather valid |
-| 🟡 Gold | Hub online, weather stale (no internet) |
-| 🔴 Red | Hub offline |
+|---|---|
+| Green | Hub online, weather valid |
+| Gold | Hub online, weather stale (no internet) |
+| Red | Hub offline |
 
 ## Project Structure
 
@@ -253,18 +252,18 @@ AmbiSense/
 ## Troubleshooting
 
 | Symptom | Likely Fix |
-|---------|------------|
+|---|---|
 | Red indicator dot | Check Hub power; both on same 2.4GHz band |
-| "Unknown" city | Hub needs internet at boot; check `LOCATION_LAT`/`LON` |
-| Time incorrect | NTP sync required; check `GMT_OFFSET_SEC` |
-| Config not saving | `pio run -t erase` |
-| Keyboard covers text fields | Dynamic padding should handle this; check `_onTaEvent` callback |
+| Unknown city | Hub needs internet at boot; check LOCATION_LAT/LON |
+| Time incorrect | NTP sync required; check GMT_OFFSET_SEC |
+| Config not saving | pio run -t erase |
+| Keyboard covers text fields | Dynamic padding should handle this; check _onTaEvent callback |
 | Theme switch crashes | Async deletion fix applied; update if still occurs |
 
 ## Performance
 
 | Metric | Value |
-|--------|-------|
+|---|---|
 | ESP-NOW latency | <50ms |
 | Broadcast rate | 250ms (4Hz) |
 | Sensor polling | 2 seconds |
@@ -275,31 +274,31 @@ AmbiSense/
 ## Customization
 
 | Aspect | File | Setting |
-|--------|------|---------|
-| Timezone | `Config.h` | `GMT_OFFSET_SEC` |
-| Weather interval | `Config.h` | `WEATHER_INTERVAL_MS` |
-| Brightness limits | `DisplayConfig.h` | `BRIGHTNESS_MIN_PERCENT` / `BRIGHTNESS_MAX_PERCENT` |
-| Theme colors | `ui.cpp` | `DARK` / `LIGHT` palettes |
-| Location | `LocationConfig.h` | `LOCATION_LAT` / `LOCATION_LON` |
-| UI Layout | `UIConfig.h` | Screen size, margins, gaps |
+|---|---|---|
+| Timezone | Config.h | GMT_OFFSET_SEC |
+| Weather interval | Config.h | WEATHER_INTERVAL_MS |
+| Brightness limits | DisplayConfig.h | BRIGHTNESS_MIN_PERCENT / BRIGHTNESS_MAX_PERCENT |
+| Theme colors | ui.cpp | DARK / LIGHT palettes |
+| Location | LocationConfig.h | LOCATION_LAT / LOCATION_LON |
+| UI Layout | UIConfig.h | Screen size, margins, gaps |
 
 ## For Developers
 
-This project enforces a strict code layout standard documented in [`docs/Code_Layout_Standard.md`](docs/Code_Layout_Standard.md). Key rules:
+This project enforces a strict code layout standard documented in docs/Code_Layout_Standard.md. Key rules:
 
 - One logical module per file
 - Headers declare public API only — no implementation
 - Source files contain all implementation and internal state
-- Comment hierarchy: T1 (file header) → T7 (inline notes)
+- Comment hierarchy: T1 (file header) to T7 (inline notes)
 
 When contributing, follow the visual hierarchy scale defined in the standard document.
 
 ## Links
 
-- [LVGL Documentation](https://docs.lvgl.io/)
-- [ESP-NOW Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html)
-- [Open-Meteo API](https://open-meteo.com/)
-- [Nominatim Geocoding](https://nominatim.openstreetmap.org/)
+- LVGL Documentation: [https://docs.lvgl.io/](https://docs.lvgl.io/)
+- ESP-NOW Guide: [https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html)
+- Open-Meteo API: [https://open-meteo.com/](https://open-meteo.com/)
+- Nominatim Geocoding: [https://nominatim.openstreetmap.org/](https://nominatim.openstreetmap.org/)
 
 ## License
 
