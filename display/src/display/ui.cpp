@@ -191,6 +191,7 @@ UI::UI()
 void UI::begin() {
     _loadPrefs();
     theme = _darkTheme ? &DARK : &LIGHT;
+    DisplayManager::setBrightness(_savedBrightness);
 
     /* Sync the global LVGL engine theme with saved setting */
     lv_disp_t* disp = lv_disp_get_default();
@@ -815,15 +816,16 @@ void UI::_buildConfig() {
     lv_obj_set_scrollbar_mode(tabWifiNtp, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_add_flag(tabWifiNtp, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_style_pad_all(tabWifiNtp, 0, 0);
-    lv_obj_set_style_pad_bottom(tabWifiNtp, 60, 0);
+    lv_obj_set_style_pad_bottom(tabWifiNtp, 50, 0);
     lv_obj_set_style_bg_color(tabWifiNtp, lv_color_hex(theme->bg), 0);
 
     /* Settings Tab */
     lv_obj_t* tabSettings = lv_tabview_add_tab(_tabviewConfig, "Settings");
     lv_obj_set_scrollbar_mode(tabSettings, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_add_flag(tabSettings, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-    lv_obj_set_style_bg_color(tabSettings, lv_color_hex(theme->bg), 0);
     lv_obj_set_style_pad_all(tabSettings, 0, 0);
+    lv_obj_set_style_pad_bottom(tabSettings, 50, 0);
+    lv_obj_set_style_bg_color(tabSettings, lv_color_hex(theme->bg), 0);
 
     /* SSID */
     // Label
@@ -862,7 +864,7 @@ void UI::_buildConfig() {
     lv_obj_set_style_text_font(_taPass, &lv_font_montserrat_14, 0);
     if (_savedPass.length() > 0) lv_textarea_set_text(_taPass, _savedPass.c_str());
 
-    /* Show Password button */
+    // Show Password button
     lv_obj_t* btnShowPass = lv_btn_create(tabWifiNtp);
     lv_obj_set_size(btnShowPass, 25, 25);
     lv_obj_align_to(btnShowPass, _taPass, LV_ALIGN_RIGHT_MID, 7, 0);
@@ -903,18 +905,20 @@ void UI::_buildConfig() {
     // Slider
     _sliderBrightness = lv_slider_create(tabSettings);
     lv_obj_set_size(_sliderBrightness, 150, 16);
-    lv_obj_set_pos(_sliderBrightness, SCR_W - 160, 15);
+    lv_obj_set_pos(_sliderBrightness, SCR_W - 173, 17);
     lv_slider_set_range(_sliderBrightness, BRIGHTNESS_MIN_PERCENT, BRIGHTNESS_MAX_PERCENT);
     lv_slider_set_value(_sliderBrightness, DisplayManager::getBrightness(), LV_ANIM_OFF);
     lv_obj_add_event_cb(_sliderBrightness, _onBrightnessSliderCb, LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(_sliderBrightness, _onBrightnessReleasedCb, LV_EVENT_RELEASED, this);
 
     // Current value
     _lblBrightnessVal = lv_label_create(tabSettings);
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", DisplayManager::getBrightness());
     lv_label_set_text(_lblBrightnessVal, buf);
-    lv_obj_set_style_text_font(_lblBrightnessVal, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_lblBrightnessVal, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblBrightnessVal, lv_color_hex(theme->text), 0);
+    lv_obj_set_style_text_align(_lblBrightnessVal, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_align_to(_lblBrightnessVal, _sliderBrightness, LV_ALIGN_OUT_LEFT_MID, -5, 0);
 
     /* Theme row */
@@ -949,7 +953,7 @@ void UI::_buildConfig() {
 
     // Switch
     _swSeconds = lv_switch_create(tabSettings);
-    lv_obj_set_pos(_swSeconds, SCR_W - 60, 100);
+    lv_obj_set_pos(_swSeconds, SCR_W - 60, 101);
     lv_obj_set_size(_swSeconds, 50, 24);
     if (_showSeconds) lv_obj_add_state(_swSeconds, LV_STATE_CHECKED);
     lv_obj_add_event_cb(_swSeconds, _onSecondsSwitchCb, LV_EVENT_VALUE_CHANGED, this);
@@ -970,14 +974,6 @@ void UI::_buildConfig() {
     lv_dropdown_set_selected(_ddDateFmt, _dateFmt == DateFormat::TEXT ? 0 : 1);
     lv_obj_set_style_text_font(_ddDateFmt, &lv_font_montserrat_14, 0);
     lv_obj_add_event_cb(_ddDateFmt, _onDateFmtDropdownCb, LV_EVENT_VALUE_CHANGED, this);
-
-    /* Spacer to force scrollbar */
-    lv_obj_t* spacer = lv_obj_create(tabSettings);
-    lv_obj_remove_style_all(spacer);
-    lv_obj_set_size(spacer, 1, 30);   // Extra height to exceed container
-    lv_obj_set_pos(spacer, 0, 179);
-    lv_obj_set_style_bg_opa(spacer, LV_OPA_TRANSP, 0);
-    lv_obj_clear_flag(spacer, LV_OBJ_FLAG_CLICKABLE);
 
     /* Keyboard Setup */
     _kbConfig = lv_keyboard_create(_scrConfig);
@@ -1009,6 +1005,7 @@ void UI::_onConfigSaveCb(lv_event_t* e) {
             lv_textarea_get_text(ui->_taNTP)
         );
     }
+    ui->_savePrefs();
     ui->showScreen(Screen::DASHBOARD);
 }
 
@@ -1047,6 +1044,19 @@ void UI::_onBrightnessSliderCb(lv_event_t* e) {
     snprintf(buf, sizeof(buf), "%d%%", val);
     lv_label_set_text(ui->_lblBrightnessVal, buf);
     DisplayManager::setBrightness(val);
+}
+
+void UI::_onBrightnessReleasedCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    int val = lv_slider_get_value(ui->_sliderBrightness);
+    
+    // Save only brightness
+    Preferences prefs;
+    prefs.begin("ui_prefs", false);
+    prefs.putUChar("brightness", val);
+    prefs.end();
+    
+    Serial.printf("[UI] Brightness saved: %d%%\n", val);
 }
 
 void UI::_onThemeBtnCb(lv_event_t* e) {
@@ -1105,7 +1115,7 @@ void UI::_onTabChangeCb(lv_event_t* e) {
         lv_obj_t* ta = lv_keyboard_get_textarea(ui->_kbConfig);
         if (ta) {
             lv_obj_t* tab = lv_obj_get_parent(ta);
-            lv_obj_set_style_pad_bottom(tab, 60, 0);
+            lv_obj_set_style_pad_bottom(tab, 50, 0);
             lv_obj_clear_state(ta, LV_STATE_FOCUSED);
             lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
         }
@@ -1130,7 +1140,7 @@ void UI::_onTaEvent(lv_event_t* e) {
     else if (code == LV_EVENT_DEFOCUSED) {
         if (lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
             lv_obj_t* tab = lv_obj_get_parent(ta);
-            lv_obj_set_style_pad_bottom(tab, 60, 0);
+            lv_obj_set_style_pad_bottom(tab, 50, 0);
             lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
         }
     }

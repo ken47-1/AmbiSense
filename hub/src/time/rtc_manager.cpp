@@ -32,7 +32,7 @@ void RTCManager::begin() {
 
 void RTCManager::update(uint32_t nowMs, bool wifiConnected, const char* ntpServer) {
     if (!_running) return;
-    
+
     if (nowMs - _lastSyncCheck < SYNC_CHECK_INTERVAL_MS) return;
     _lastSyncCheck = nowMs;
 
@@ -43,6 +43,7 @@ void RTCManager::update(uint32_t nowMs, bool wifiConnected, const char* ntpServe
         } else if (nowMs - _syncStarted > NTP_SYNC_TIMEOUT_DELAY_MS) {
             _ntpStatus.retries++;
             _syncInProgress = false;
+            _ntpStatus.state = SyncState::IDLE;   /* back to idle; not stuck on SYNCING */
             if (_ntpStatus.retries >= NTP_SYNC_MAX_RETRIES) {
                 _ntpStatus.state = SyncState::FAILED;
                 Serial.printf("[RTC] NTP sync failed after %d retries\n", NTP_SYNC_MAX_RETRIES);
@@ -55,10 +56,14 @@ void RTCManager::update(uint32_t nowMs, bool wifiConnected, const char* ntpServe
 
     if (!wifiConnected || ntpServer == nullptr) return;
 
-    DateTime now = _rtc.now();
-    bool shouldSync = (now.hour()   == TARGET_SYNC_HOUR &&
-                       now.minute() == TARGET_SYNC_MINUTE &&
-                       now.day()    != _lastSyncDay);
+    /* RTC stores UTC. Compare against LOCAL time so TARGET_SYNC_HOUR is
+       interpreted in the configured TZ (see configTime in _startSync). */
+    time_t epoch = _rtc.now().unixtime();
+    struct tm* local = localtime(&epoch);
+
+    bool shouldSync = (local->tm_hour == TARGET_SYNC_HOUR &&
+                       local->tm_min  == TARGET_SYNC_MINUTE &&
+                       local->tm_mday != _lastSyncDay);
 
     if (!_ntpStatus.everSynced && _ntpStatus.state != SyncState::FAILED) shouldSync = true;
 
@@ -82,23 +87,26 @@ void RTCManager::_startSync(const char* ntpServer) {
 
 void RTCManager::_finishSync() {
     time_t now = time(nullptr);
-    struct tm* ti = gmtime(&now);
-    
+
+    /* Store UTC fields in the RTC so DateTime::unixtime() round-trips correctly. */
+    struct tm* utc = gmtime(&now);
     _rtc.adjust(DateTime(
-        ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday,
-        ti->tm_hour, ti->tm_min, ti->tm_sec
+        utc->tm_year + 1900, utc->tm_mon + 1, utc->tm_mday,
+        utc->tm_hour, utc->tm_min, utc->tm_sec
     ));
-    
-    _lastSyncDay = _rtc.now().day();
+
+    /* Track last-synced day in local time (matches the comparison in update()). */
+    struct tm* local = localtime(&now);
+    _lastSyncDay = local->tm_mday;
+
     _syncInProgress = false;
     _ntpStatus.state = SyncState::DONE;
     _ntpStatus.everSynced = true;
     _ntpStatus.retries = 0;
-    
-    struct tm* local_ti = localtime(&now);
+
     Serial.printf("[RTC] NTP sync done (UTC): %04d-%02d-%02d %02d:%02d:%02d\n",
-                  ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday,
-                  ti->tm_hour, ti->tm_min, ti->tm_sec);
+                  utc->tm_year + 1900, utc->tm_mon + 1, utc->tm_mday,
+                  utc->tm_hour, utc->tm_min, utc->tm_sec);
     Serial.printf("[RTC] Local time: %02d:%02d:%02d\n",
-                  local_ti->tm_hour, local_ti->tm_min, local_ti->tm_sec);
+                  local->tm_hour, local->tm_min, local->tm_sec);
 }

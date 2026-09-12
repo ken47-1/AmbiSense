@@ -163,11 +163,11 @@ void Network::begin() {
     Serial.println("[NET] ESP-NOW INIT");
     
     if (!loadConfig()) {
-        Serial.println("[NET] Using default config...");
-        strlcpy(_ssid, "YOUR_SSID_HERE", sizeof(_ssid));
-        strlcpy(_password, "YOUR_PASSWORD_HERE", sizeof(_password));
-        strlcpy(_ntpServer, "asia.pool.ntp.org", sizeof(_ntpServer));
-        _hasConfig = true; // Set this so update() doesn't block!
+        Serial.println("[NET] No saved config. Waiting for Display to push credentials...");
+        strlcpy(_ntpServer, "pool.ntp.org", sizeof(_ntpServer));
+        /* _hasConfig stays false. Network::update() will not attempt WiFi
+           reconnects until the Display sends a ConfigPacket, at which point
+           saveConfig() flips _hasConfig and calls connectWiFi(). */
     } else {
         connectWiFi();
     }

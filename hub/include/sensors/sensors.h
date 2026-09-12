@@ -3,7 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/HubConfig.h"
 #include "config/HardwareConfig.h"
 
 /* ============ THIRD-PARTY ============ */

@@ -3,7 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/HubConfig.h"
 #include "config/LocationConfig.h"
 
 /* =============== PUBLIC API =============== */

@@ -97,18 +97,33 @@ pio run -t upload
 pio device monitor -b 115200
 ```
 
-Expected output:
+Expected output 1 (No config):
 
 ```
 [MAIN] AmbiSense Hub booting...
 [RTC] DS3231 INIT
 [GEO] LocationResolver INIT
 [NET] ESP-NOW INIT
-[NET] Config loaded: SSID: YOUR_SSID_HERE
+[   113][E][Preferences.cpp:50] begin(): nvs_open failed: NOT_FOUND
+[NET] No saved config. Waiting for Display to push credentials...
 [MAIN] Boot complete.
-[NET] Connected to IP: 192.168.x.xxx
-[GEO] Location resolved: New York
-[WEATHER] Data fetched successfully
+```
+
+Expected output 2 (Config saved):
+
+```
+[MAIN] AmbiSense Hub booting...
+[RTC] DS3231 INIT
+[GEO] LocationResolver INIT
+[NET] ESP-NOW INIT
+[NET] Config loaded: SSID: YOUR_SSID_HERE NTP: pool.ntp.org
+[NET] Connecting to YOUR_SSID_HERE...
+[MAIN] Boot complete.
+
+[NET] Connected to IP: 192.168.xxx.xxx
+[RTC] NTP sync starting...
+[RTC] NTP sync done (UTC): xxxx-xx-xx xx:xx:xx
+[RTC] Local time: xx:xx:xx
 ```
 
 ### 3. Flash Display
@@ -123,11 +138,16 @@ Expected output:
 
 ```
 [MAIN] AmbiSense Display booting...
+[DISP] Backlight initialized: 80%
 [DISP] DisplayManager initialized.
+[NET] Scanning on ALL Channels...
 [NET] ESP-NOW INIT
+[NET] LOCKED to Hub Channel: 1
+[NET] Connection Restored in 723ms on Channel 1
+[NET] Hub MAC learned
+[UI] Dashboard built.
 [UI] Initialized.
 [MAIN] Boot complete.
-[NET] LOCKED to Hub Channel: 4
 ```
 
 ## Hardware Requirements
@@ -226,7 +246,7 @@ AmbiSense/
 │   └── User_Setup.h
 ├── hub/                   # ESP32 Hub firmware
 │   ├── include/
-│   │   ├── config/        # Config, HardwareConfig, LocationConfig
+│   │   ├── config/        # HubConfig, HardwareConfig, LocationConfig
 │   │   ├── network/       # network.h
 │   │   ├── sensors/       # sensors.h
 │   │   ├── services/

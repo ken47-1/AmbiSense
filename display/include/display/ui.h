@@ -136,6 +136,7 @@ private:
     static void _onBackBtnCb(lv_event_t* e);
     static void _onShowPassCb(lv_event_t* e);
     static void _onBrightnessSliderCb(lv_event_t* e);
+    static void _onBrightnessReleasedCb(lv_event_t* e);
     static void _onThemeBtnCb(lv_event_t* e);
     static void _onSecondsSwitchCb(lv_event_t* e);
     static void _onDateFmtDropdownCb(lv_event_t* e);

@@ -14,7 +14,7 @@ lv_disp_drv_t       DisplayManager::_disp_drv;
 lv_disp_draw_buf_t  DisplayManager::_draw_buf;
 lv_indev_drv_t      DisplayManager::_indev_drv;
 lv_color_t*         DisplayManager::_buf = nullptr;
-uint8_t             DisplayManager::_currentPercent = 20;
+uint8_t             DisplayManager::_currentPercent = 80;
 
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
@@ -34,8 +34,7 @@ void DisplayManager::begin() {
     _touch.setRotation(3);
 
     /* ---- Backlight PWM ---- */
-    ledcSetup(0, 5000, 8);
-    ledcAttachPin(TFT_BL, 0);
+    pinMode(TFT_BL, OUTPUT);
     _applyBrightness(_currentPercent);
     Serial.printf("[DISP] Backlight initialized: %d%%\n", _currentPercent);
 
@@ -100,7 +99,7 @@ void DisplayManager::_applyBrightness(uint8_t percent) {
     if (percent < BRIGHTNESS_MIN_PERCENT) percent = BRIGHTNESS_MIN_PERCENT;
     if (percent > BRIGHTNESS_MAX_PERCENT) percent = BRIGHTNESS_MAX_PERCENT;
     uint32_t duty = map(percent, 0, 100, 0, 255);
-    ledcWrite(0, duty);
+    analogWrite(TFT_BL, duty);
     _currentPercent = percent;
 }
 

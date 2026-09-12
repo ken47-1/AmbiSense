@@ -3,7 +3,7 @@
 
 /* =============== INCLUDES =============== */
 /* ============ PROJECT ============ */
-#include "config/Config.h"
+#include "config/PacketProtocol.h"
 #include "sensors/sensors.h"
 #include "time/rtc_manager.h"
 #include "services/weather/weather.h"
@@ -40,6 +40,9 @@ static void onCmdReceived(const CmdPacket& pkt) {
 void setup() {
     Serial.begin(115200);
     Serial.println("\n[MAIN] AmbiSense Hub booting...");
+
+    setenv("TZ", "ICT-7", 1);
+    tzset();
 
     sensors.begin();
     rtc.begin();
