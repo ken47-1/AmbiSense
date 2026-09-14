@@ -150,7 +150,7 @@ void Network::begin() {
     if (!esp_now_is_peer_exist(ESPNOW_BROADCAST)) esp_now_add_peer(&peer);
 
     loadConfig();
-    	LOG_I(Log::Ch::CH_NET, "ESP-NOW INIT");
+        LOG_I(Log::Ch::CH_NET, "ESP-NOW INIT");
 }
 
 void Network::update() {
