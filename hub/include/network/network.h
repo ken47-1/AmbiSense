@@ -8,6 +8,7 @@
 #include "config/PacketProtocol.h"
 
 /* ============ PROJECT ============ */
+#include "log/log.h"
 #include "sensors/sensors.h"
 #include "time/rtc_manager.h"
 #include "services/weather/weather.h"

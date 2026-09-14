@@ -27,7 +27,7 @@ void DisplayManager::begin() {
     _buf = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
     if (_buf == nullptr) {
-        Serial.println("[DISP] ERROR: Could not allocate display buffer!");
+        LOG_E(Log::Ch::CH_DSP, "Could not allocate display buffer!");
         return;
     }
 
@@ -38,7 +38,7 @@ void DisplayManager::begin() {
     /* ---- Backlight PWM ---- */
     pinMode(TFT_BL, OUTPUT);
     _applyBrightness(_currentPercent);
-    Serial.printf("[DISP] Backlight initialized: %d%%\n", _currentPercent);
+    LOG_I(Log::Ch::CH_DSP, "Backlight initialized: %d%%\n", _currentPercent);
 
     lv_init();
 
@@ -59,7 +59,7 @@ void DisplayManager::begin() {
     _indev_drv.read_cb = _touchReadCb;
     lv_indev_drv_register(&_indev_drv);
 
-    Serial.println("[DISP] DisplayManager initialized.");
+    LOG_I(Log::Ch::CH_DSP, "DisplayManager initialized.");
 }
 
 void DisplayManager::update() {

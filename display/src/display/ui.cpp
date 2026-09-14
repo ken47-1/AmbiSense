@@ -132,7 +132,7 @@ void UI::_onBrightnessReleasedCb(lv_event_t* e) {
     int val = lv_slider_get_value(ui->_sliderBrightness);
 
     ui->_savePrefs();
-    Serial.printf("[UI] Brightness saved: %d%%\n", val);
+    LOG_I(Log::Ch::CH_UI, "Brightness saved: %d%%", val);
 }
 
 void UI::_onThemeBtnCb(lv_event_t* e) {
@@ -1117,7 +1117,7 @@ void UI::begin() {
 
     _buildDashboard();
     _buildConfig();
-    Serial.println("[UI] Initialized.");
+    LOG_I(Log::Ch::CH_UI, "Initialized.");
 }
 
 void UI::update(const DataPacket& pkt, bool hubOnline) {

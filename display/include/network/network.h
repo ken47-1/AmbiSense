@@ -6,6 +6,9 @@
 /* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
 
+/* ============ PROJECT ============ */
+#include "log/log.h"
+
 /* ============ CORE ============ */
 #include <WiFi.h>
 #include <esp_wifi.h>

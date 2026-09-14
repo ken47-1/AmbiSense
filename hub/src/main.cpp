@@ -7,7 +7,7 @@
 #include "config/PacketProtocol.h"
 
 /* ============ PROJECT ============ */
-#include "debug/debug.h"
+#include "log/log.h"
 #include "sensors/sensors.h"
 #include "time/rtc_manager.h"
 #include "services/weather/weather.h"
@@ -47,7 +47,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("[MAIN] AmbiSense Hub booting...");
 
-    Debug::init();
+    Log::init();
 
     setenv("TZ", "ICT-7", 1);
     tzset();

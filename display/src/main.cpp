@@ -7,7 +7,7 @@
 #include "config/DisplayConfig.h"
 
 /* ============ PROJECT ============ */
-#include "debug/debug.h"
+#include "log/log.h"
 #include "network/network.h"
 #include "display/display_manager.h"
 #include "display/ui.h"
@@ -48,9 +48,8 @@ static void onForceSync() {
 /* ============ LIFECYCLE ============ */
 void setup() {
     Serial.begin(115200);
-    Serial.println("[MAIN] AmbiSense Display booting...");
-
-    Debug::init();
+    Log::init();    
+    LOG_I(Log::Ch::CH_SYS, "AmbiSense Display booting...");
 
     g_pktMutex = xSemaphoreCreateMutex();
 
@@ -66,7 +65,7 @@ void setup() {
     ui.setOnForceSyncCmd(onForceSync);
     ui.begin();
 
-    Serial.println("[MAIN] Boot complete.");
+    LOG_I(Log::Ch::CH_SYS, "Boot complete.");
 }
 
 void loop() {

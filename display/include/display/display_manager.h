@@ -6,6 +6,9 @@
 /* ============ CONFIG ============ */
 #include "config/HardwareConfig.h"
 
+/* ============ PROJECT ============ */
+#include "log/log.h"
+
 /* ============ THIRD-PARTY ============ */
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>

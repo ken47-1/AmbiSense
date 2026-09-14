@@ -51,7 +51,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     else if (type == PACKET_TYPE_ACK && len == sizeof(AckPacket)) {
         AckPacket pkt;
         memcpy(&pkt, data, sizeof(pkt));
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "ACK from display seq=%u\n", pkt.ack_seq);
+        LOG_D(Log::Ch::CH_NET, "ACK from display seq=%u\n", pkt.ack_seq);
     }
     /* ========= UNKNOWN ========= */
     else {
@@ -247,7 +247,7 @@ void Network::update() {
         _buildDataPacket(pkt, w); 
         broadcastData(pkt);
         
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "Periodic broadcast sent");
+        LOG_D(Log::Ch::CH_NET, "Periodic broadcast sent");
     }
 }
 

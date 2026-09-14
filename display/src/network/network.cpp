@@ -6,7 +6,6 @@
 /* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
 #include "config/DisplayConfig.h"
-#include "config/DebugConfig.h"
 
 /* ============ CORE ============ */
 #include <sys/time.h>
@@ -45,7 +44,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
         if (!_isConnected) {
             _isConnected = true;
             uint32_t syncTime = millis() - _scanStartMs;
-            Serial.printf("[NET] Connection Restored in %ums on Channel %d\n", syncTime, pkt.channel);
+            LOG_I(Log::Ch::CH_NET, "Connection Restored in %ums on Channel %d\n", syncTime, pkt.channel);
             if (_onStatus) _onStatus(true);
         }
 
@@ -69,7 +68,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
             uint8_t diff = pkt.seq - _lastSeq;
             if (diff != 1) {
                 _dropCount += (uint32_t)(diff - 1);
-                DBG_PRINT(Debug::Ch::CH_NETWORK, "Seq drop: last=%u now=%u dropped=%u", _lastSeq, pkt.seq, (uint8_t)(diff - 1));
+                LOG_D(Log::Ch::CH_NET, "Seq drop: last=%u now=%u dropped=%u", _lastSeq, pkt.seq, (uint8_t)(diff - 1));
             }
         } else {
             _seqInitialized = true;
@@ -87,7 +86,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     }
     /* ========= UNKNOWN ========= */
     else {
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "Unknown type 0x%02X len=%d\n", type, len);
+        LOG_D(Log::Ch::CH_NET, "Unknown type 0x%02X len=%d\n", type, len);
     }
 }
 
@@ -100,7 +99,7 @@ void Network::_sendAck(const uint8_t* mac, uint8_t seq) {
 
     esp_err_t err = esp_now_send(mac, (uint8_t*)&pkt, sizeof(pkt));
     if (err != ESP_OK) {
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "ACK TX failed: %d\n", (int)err);
+        LOG_D(Log::Ch::CH_NET, "ACK TX failed: %d\n", (int)err);
     }
 }
 
@@ -136,10 +135,10 @@ void Network::begin() {
 
     esp_wifi_set_ps(WIFI_PS_NONE);
     esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
-    Serial.println("[NET] Scanning on ALL Channels...");
+    LOG_I(Log::Ch::CH_NET, "Scanning on ALL Channels...");
 
     if (esp_now_init() != ESP_OK) {
-        Serial.println("[NET] ESP-NOW init failed");
+        LOG_E(Log::Ch::CH_NET, "ESP-NOW init failed");
         return;
     }
     esp_now_register_recv_cb(_onDataRecv);
@@ -151,7 +150,7 @@ void Network::begin() {
     if (!esp_now_is_peer_exist(ESPNOW_BROADCAST)) esp_now_add_peer(&peer);
 
     loadConfig();
-    Serial.println("[NET] ESP-NOW INIT");
+    	LOG_I(Log::Ch::CH_NET, "ESP-NOW INIT");
 }
 
 void Network::update() {
@@ -162,7 +161,7 @@ void Network::update() {
         _lastKnownHubChan = _pendingHubChan;
         _pendingHubChan   = 0;
         _seqInitialized   = false;
-        Serial.printf("[NET] LOCKED to Hub Channel: %d\n", _lastKnownHubChan);
+        LOG_I(Log::Ch::CH_NET, "LOCKED to Hub Channel: %d\n", _lastKnownHubChan);
     }
 
     if (_isConnected) {
@@ -171,7 +170,7 @@ void Network::update() {
             _lastKnownHubChan = 0;
             _currentScanChan = 13;
             _scanStartMs = now;
-            Serial.println("[NET] Connection Lost. Starting Active Scan...");
+            LOG_W(Log::Ch::CH_NET, "Connection Lost. Starting Active Scan...");
             if (_onStatus) _onStatus(false);
         }
     } else {
@@ -180,7 +179,7 @@ void Network::update() {
             _currentScanChan++;
             if (_currentScanChan > 13) _currentScanChan = 1;
             esp_wifi_set_channel(_currentScanChan, WIFI_SECOND_CHAN_NONE);
-            DBG_PRINT(Debug::Ch::CH_NETWORK, "Scanning Channel: %d\n", _currentScanChan);
+            LOG_D(Log::Ch::CH_NET, "Scanning Channel: %d\n", _currentScanChan);
         }
     }
 }
@@ -196,7 +195,7 @@ void Network::sendConfig(const char* ssid, const char* password, const char* ntp
 
     esp_err_t err = esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
     if (err != ESP_OK) {
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "Config TX failed: %d\n", (int)err);
+        LOG_D(Log::Ch::CH_NET, "Config TX failed: %d\n", (int)err);
     }
 }
 
@@ -207,7 +206,7 @@ void Network::sendCmd(uint8_t cmd) {
     pkt.seq  = _txSeq++;
     esp_err_t err = esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
     if (err != ESP_OK) {
-        DBG_PRINT(Debug::Ch::CH_NETWORK, "Command TX failed: %d\n", (int)err);
+        LOG_D(Log::Ch::CH_NET, "Command TX failed: %d\n", (int)err);
     }
 }
 
@@ -224,7 +223,7 @@ bool Network::loadConfig() {
     strlcpy(_ntpServer, _prefs.getString("ntp", "asia.pool.ntp.org").c_str(), sizeof(_ntpServer));
     _prefs.end();
     _hasConfig = true;
-    DBG_PRINT(Debug::Ch::CH_NETWORK, "Config loaded: SSID: %s\n", _ssid);
+    LOG_D(Log::Ch::CH_NET, "Config loaded: SSID: %s\n", _ssid);
     return true;
 }
 
@@ -238,7 +237,7 @@ void Network::saveConfig(const char* ssid, const char* password, const char* ntp
     _prefs.putString("ntp",  _ntpServer);
     _prefs.end();
     _hasConfig = true;
-    Serial.printf("[NET] Config saved: SSID=%s\n", _ssid);
+    LOG_I(Log::Ch::CH_NET, "Config saved: SSID=%s\n", _ssid);
 }
 
 } // namespace AmbiSense::Display
