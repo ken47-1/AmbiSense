@@ -25,7 +25,9 @@ Defines the required structure and conventions for log output in this project.
 
 No other file defines a level, defines a channel, or emits a log line.
 
-Each firmware keeps its own copy of the three files. Copy a fix to every copy the same day.
+Each firmware keeps its own copy of the three files. Channels and levels are chosen per firmware. Divergence is expected.
+
+When you fix a real bug (not a feature), check the other firmware by hand. If the bug exists there, apply the same fix.
 
 ---
 
@@ -123,13 +125,14 @@ A firmware picks its own `Ch` values. Here is one example.
 - `Log::init()` — set default masks. Call once, from `setup()`.
 - `Log::reset()` — clear both masks. Use from tests.
 - `Log::enabled(Lvl, Ch)` — query a level and a channel together. Used by the macros.
+- `Log::isLevelEnabled(Lvl)` — query the level mask only.
 - `Log::isChannelEnabled(Ch)` — query the channel mask only.
 - `Log::setLevel(Lvl, bool)` — enable or disable one level.
 - `Log::setChannel(Ch, bool)` — enable or disable one channel.
 - `Log::setAllLevels(bool)` — enable or disable all levels.
 - `Log::setAllChannels(bool)` — enable or disable all channels.
 - `Log::dump()` — print both masks and per-entry state.
-- `Log::dumpShort()` — print the channel mask only.
+- `Log::dumpShort()` — print enabled levels and channels, short form.
 - `Log::write(Lvl, Ch, fmt, ...)` — formatted write. Not for direct use. Go through a macro.
 
 ---

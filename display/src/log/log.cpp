@@ -62,6 +62,13 @@ bool enabled(Lvl l, Ch c) {
         && ((channelMask_ & (1u << (uint8_t)c)) != 0);
 }
 
+bool isLevelEnabled(Lvl l) {
+    if ((uint8_t)l >= (uint8_t)Lvl::COUNT) {
+        return false;
+    }
+    return (levelMask_ & (1u << (uint8_t)l)) != 0;
+}
+
 bool isChannelEnabled(Ch c) {
     if ((uint8_t)c >= (uint8_t)Ch::COUNT) {
         return false;
@@ -86,24 +93,42 @@ void setAllChannels(bool on) { channelMask_ = on ? 0xFF : 0x00; }
 
 void dump() {
     static const char* lvls[] = {"D", "I", "W", "E"};
-    static const char* chs[] = {"SYS", "NET", "DSP", "UI "};
+    static const char* chs[] = {"SYS", "NET", "DSP", "UI"};
 
-    Serial.printf("[I][SYS ] level mask:   0x%02X\n", levelMask_);
-    Serial.printf("[I][SYS ] channel mask: 0x%02X\n", channelMask_);
+    Serial.printf("level mask:   0x%02X\n", levelMask_);
+    Serial.printf("channel mask: 0x%02X\n", channelMask_);
 
     for (uint8_t i = 0; i < (uint8_t)Lvl::COUNT; i++) {
-        Serial.printf("[I][SYS ]   %s: %s\n", lvls[i],
+        Serial.printf("  %s: %s\n", lvls[i],
             (levelMask_ & (1u << i)) ? "ON" : "OFF");
     }
     for (uint8_t i = 0; i < (uint8_t)Ch::COUNT; i++) {
-        Serial.printf("[I][SYS ]   %s: %s\n", chs[i],
+        Serial.printf("  %s: %s\n", chs[i],
             (channelMask_ & (1u << i)) ? "ON" : "OFF");
     }
 }
 
 void dumpShort() {
-    Serial.print(F("Log channels: 0x"));
-    Serial.println(channelMask_, HEX);
+    static const char* lvls[] = {"D", "I", "W", "E"};
+    static const char* chs[] = {"SYS", "NET", "DSP", "UI"};
+
+    Serial.print(F("Lvl:"));
+    for (uint8_t i = 0; i < (uint8_t)Lvl::COUNT; i++) {
+        if (levelMask_ & (1u << i)) {
+            Serial.print(' ');
+            Serial.print(lvls[i]);
+        }
+    }
+    Serial.println();
+
+    Serial.print(F("Ch: "));
+    for (uint8_t i = 0; i < (uint8_t)Ch::COUNT; i++) {
+        if (channelMask_ & (1u << i)) {
+            Serial.print(chs[i]);
+            Serial.print(' ');
+        }
+    }
+    Serial.println();
 }
 
 void write(Lvl l, Ch c, const char* fmt, ...) {

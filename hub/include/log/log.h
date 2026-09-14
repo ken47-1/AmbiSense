@@ -29,6 +29,7 @@ void init();
 void reset();
 
 bool enabled(Lvl l, Ch c);
+bool isLevelEnabled(Lvl l);
 bool isChannelEnabled(Ch c);
 
 void setLevel(Lvl l, bool on);
@@ -38,10 +39,6 @@ void setAllChannels(bool on);
 
 void dump();
 void dumpShort();
-void write(Lvl l, Ch c, const char* fmt, ...);
-
-
-void dump();
 void write(Lvl l, Ch c, const char* fmt, ...);
 
 } // namespace Log
