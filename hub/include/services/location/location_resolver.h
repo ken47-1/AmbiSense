@@ -31,6 +31,7 @@ private:
     float    _pendingLat;
     float    _pendingLon;
     bool     _fetchPending;
+    bool     _gaveUp;
 };
 
 } // namespace AmbiSense::Hub

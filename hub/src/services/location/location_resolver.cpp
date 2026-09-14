@@ -22,6 +22,7 @@ LocationResolver::LocationResolver()
     , _pendingLat(0)
     , _pendingLon(0)
     , _fetchPending(false)
+    , _gaveUp(false)
 {}
 
 void LocationResolver::begin() {
@@ -55,9 +56,11 @@ void LocationResolver::update() {
         Serial.printf("[GEO] Location resolved: %s\n", _cachedCity.c_str());
     } else {
         _retryCount++;
-        if (_retryCount >= LOCATION_MAX_RETRIES) {
-            Serial.println("[GEO] Max retries reached, giving up until next reboot");
-            _fetchPending = false;  // Stop trying
+		if (_retryCount >= LOCATION_MAX_RETRIES) {
+			Serial.println("[GEO] Max retries reached. Cooling down.");
+			_fetchPending = false;
+			_gaveUp       = true;
+			_lastAttemptMs = now;
         } else {
             Serial.printf("[GEO] Retry %d/%d in %lu ms\n", _retryCount, LOCATION_MAX_RETRIES, LOCATION_RETRY_INTERVAL_MS);
         }
@@ -66,7 +69,15 @@ void LocationResolver::update() {
 
 /* ============ ACTIONS ============ */
 String LocationResolver::getCityName(float lat, float lon) {
-    if (_valid && _cachedCity.length() > 0) { return _cachedCity; }
+    if (_valid && _cachedCity.length() > 0) return _cachedCity;
+
+    /* Clear give-up state if coordinates changed */
+	if (_gaveUp) {
+		if (millis() - _lastAttemptMs < LOCATION_COOLDOWN_MS) return _cachedCity;
+		_gaveUp = false;
+	}
+
+    if (_fetchPending || _gaveUp) return _cachedCity;
 
     _pendingLat   = lat;
     _pendingLon   = lon;
