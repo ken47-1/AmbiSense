@@ -29,11 +29,17 @@ void init();
 void reset();
 
 bool enabled(Lvl l, Ch c);
+bool isChannelEnabled(Ch c);
 
 void setLevel(Lvl l, bool on);
 void setChannel(Ch c, bool on);
 void setAllLevels(bool on);
 void setAllChannels(bool on);
+
+void dump();
+void dumpShort();
+void write(Lvl l, Ch c, const char* fmt, ...);
+
 
 void dump();
 void write(Lvl l, Ch c, const char* fmt, ...);

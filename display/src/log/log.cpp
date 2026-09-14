@@ -62,6 +62,13 @@ bool enabled(Lvl l, Ch c) {
         && ((channelMask_ & (1u << (uint8_t)c)) != 0);
 }
 
+bool isChannelEnabled(Ch c) {
+    if ((uint8_t)c >= (uint8_t)Ch::COUNT) {
+        return false;
+    }
+    return (channelMask_ & (1u << (uint8_t)c)) != 0;
+}
+
 void setLevel(Lvl l, bool on) {
     if ((uint8_t)l >= (uint8_t)Lvl::COUNT) return;
     uint8_t bit = 1u << (uint8_t)l;
@@ -92,6 +99,11 @@ void dump() {
         Serial.printf("[I][SYS ]   %s: %s\n", chs[i],
             (channelMask_ & (1u << i)) ? "ON" : "OFF");
     }
+}
+
+void dumpShort() {
+    Serial.print(F("Log channels: 0x"));
+    Serial.println(channelMask_, HEX);
 }
 
 void write(Lvl l, Ch c, const char* fmt, ...) {

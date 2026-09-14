@@ -25,11 +25,7 @@ Defines the required structure and conventions for log output in this project.
 
 No other file defines a level, defines a channel, or emits a log line.
 
-Each firmware carries its own copy. Keep the copies in sync by hand. Mark each copy with a header comment:
-
-```cpp
-/* Mirrored in <other project>. Keep in sync. */
-```
+Each firmware keeps its own copy of the three files. Copy a fix to every copy the same day.
 
 ---
 
@@ -91,27 +87,23 @@ Rules:
 - The mask is 8 bits. Do not exceed 8 channels without widening the mask.
 - Channel names describe the module, not the action.
 
-### Hub channels
+The channel set is firmware-specific. Choose the channels that match that firmware's
+modules. The sets below are examples, not a required list.
+
+## Example Channel Set
+
+A firmware picks its own `Ch` values. Here is one example.
 
 | Value | Tag | Module |
 |---|---|---|
-| `CH_SYS` | `SYS ` | Boot, lifecycle, `main.cpp` |
-| `CH_NET` | `NET ` | ESP-NOW, Wi-Fi, `Network` |
-| `CH_GEO` | `GEO ` | `LocationResolver` |
-| `CH_WEA` | `WEA ` | `Weather` |
-| `CH_SNR` | `SNR ` | `Sensors` (DHT22) |
-| `CH_RTC` | `RTC ` | `RTCManager`, NTP |
-
-### Display channels
-
-| Value | Tag | Module |
-|---|---|---|
-| `CH_SYS` | `SYS ` | Boot, lifecycle, `main.cpp` |
-| `CH_NET` | `NET ` | ESP-NOW RX, `Network` |
-| `CH_DSP` | `DSP ` | `DisplayManager`, LVGL |
-| `CH_UI` | `UI  ` | UI events, touch |
-
-Shared channels keep the same tag in both firmwares. `SYS` and `NET` match.
+| `CH_COM` | `COM ` | Comms |
+| `CH_INP` | `INP ` | Input parser, buttons, watchdog |
+| `CH_MOT` | `MOT ` | MotorControl, MotorHardware |
+| `CH_RMP` | `RMP ` | MotorRamp |
+| `CH_PID` | `PID ` | MotorPID, Encoder |
+| `CH_SNR` | `SNR ` | Ultrasonic, ObstacleDetection, Battery |
+| `CH_SAF` | `SAF ` | SafetyManager, MotionPolicy, MotorFault |
+| `CH_WDG` | `WDG ` | InputWatchdog |
 
 ---
 
@@ -131,11 +123,13 @@ Shared channels keep the same tag in both firmwares. `SYS` and `NET` match.
 - `Log::init()` — set default masks. Call once, from `setup()`.
 - `Log::reset()` — clear both masks. Use from tests.
 - `Log::enabled(Lvl, Ch)` — query a level and a channel together. Used by the macros.
+- `Log::isChannelEnabled(Ch)` — query the channel mask only.
 - `Log::setLevel(Lvl, bool)` — enable or disable one level.
 - `Log::setChannel(Ch, bool)` — enable or disable one channel.
 - `Log::setAllLevels(bool)` — enable or disable all levels.
 - `Log::setAllChannels(bool)` — enable or disable all channels.
 - `Log::dump()` — print both masks and per-entry state.
+- `Log::dumpShort()` — print the channel mask only.
 - `Log::write(Lvl, Ch, fmt, ...)` — formatted write. Not for direct use. Go through a macro.
 
 ---
@@ -203,11 +197,11 @@ LOG_E(ch, fmt, ...)
 |---|---|
 | `#include "debug/debug.h"` | `#include "log/log.h"` |
 | `Debug::init()` | `Log::init()` |
-| `Debug::Ch::CH_NETWORK` | `Log::Ch::CH_NET` |
-| `Debug::Ch::CH_WEATHER` | `Log::Ch::CH_WEA` |
-| `Debug::Ch::CH_SENSORS` | `Log::Ch::CH_SNR` |
-| `Debug::Ch::CH_DISPLAY` | `Log::Ch::CH_DSP` |
-| `DBG_PRINT(Debug::Ch::CH_X, ...)` | `LOG_D(Log::Ch::CH_X, ...)` |
+| `Log::Ch::CH_NETWORK` | `Log::Ch::CH_NET` |
+| `Log::Ch::CH_WEATHER` | `Log::Ch::CH_WEA` |
+| `Log::Ch::CH_SENSORS` | `Log::Ch::CH_SNR` |
+| `Log::Ch::CH_DISPLAY` | `Log::Ch::CH_DSP` |
+| `LOG_D(Log::Ch::CH_X, ...)` | `LOG_D(Log::Ch::CH_X, ...)` |
 | `Serial.printf("[NET] ...")` | `LOG_I(Log::Ch::CH_NET, "...")` |
 | `Serial.println("[MAIN] ...")` | `LOG_I(Log::Ch::CH_SYS, "...")` |
 
