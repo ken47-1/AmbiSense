@@ -2,14 +2,26 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
+
+/* ============ CONFIG ============ */
+#include "config/HardwareConfig.h"
+
 /* ============ THIRD-PARTY ============ */
-#include <SPI.h>
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <lvgl.h>
 
-/* ============ PROJECT ============ */
-#include "config/HardwareConfig.h"
+/* ============ CORE ============ */
+#include <SPI.h>
+
+namespace AmbiSense::Display {
+
+/* =============== TYPES =============== */
+/* ============ STRUCTS ============ */
+struct TouchPoint {
+    int16_t x;
+    int16_t y;
+};
 
 /* =============== API =============== */
 class DisplayManager {
@@ -19,12 +31,12 @@ public:
     void update();
 
     /* ---- Brightness Control ---- */
-    static void setBrightness(uint8_t percent);  // 0-100
+    static void    setBrightness(uint8_t percent);
     static uint8_t getBrightness();
 
     /* ---- Touch ---- */
-    bool isTouched() { return _touch.touched(); }
-    TS_Point getTouch() { return _touch.getPoint(); }
+    bool       isTouched() { return _touch.touched(); }
+    TouchPoint getTouch();
 
 private:
     static void _flushCb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* px);
@@ -40,3 +52,5 @@ private:
     static lv_color_t*         _buf;
     static uint8_t             _currentPercent;
 };
+
+} // namespace AmbiSense::Display

@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include <time.h>
 
+namespace AmbiSense::Hub {
+
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
 RTCManager::RTCManager()
@@ -110,3 +112,5 @@ void RTCManager::_finishSync() {
     Serial.printf("[RTC] Local time: %02d:%02d:%02d\n",
                   local->tm_hour, local->tm_min, local->tm_sec);
 }
+
+} // namespace AmbiSense::Hub

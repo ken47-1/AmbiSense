@@ -5,6 +5,9 @@
 /* ============ PROJECT ============ */
 #include "weather/weather_colors.h"
 
+/* ============ CORE ============ */
+#include <stdint.h>
+
 /* =============== TYPES =============== */
 /* ============ STRUCTS ============ */
 struct WeatherData {

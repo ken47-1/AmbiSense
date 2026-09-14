@@ -2,8 +2,11 @@
 #include "network/network.h"
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/LocationConfig.h"
+
+namespace AmbiSense::Hub {
 
 /* =============== INTERNAL STATE =============== */
 /* ============ SINGLETONS ============ */
@@ -28,6 +31,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
         memcpy(&pkt, data, sizeof(pkt));
         Serial.printf("[NET] Config received: SSID: %s\n", pkt.ssid);
         saveConfig(pkt);
+        _learnDisplayMac(mac);
         sendAck(mac, pkt.seq);
         if (_onConfig) _onConfig(pkt);
     }
@@ -37,8 +41,9 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
         memcpy(&pkt, data, sizeof(pkt));
         if (pkt.cmd == CMD_FORCE_NTP_SYNC) {
             Serial.println("[NET] Force NTP sync command received");
-            configTime(0, 0, _ntpServer);
         }
+
+        _learnDisplayMac(mac);
         sendAck(mac, pkt.seq);
         if (_onCmd) _onCmd(pkt);
     }
@@ -46,14 +51,28 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     else if (type == PACKET_TYPE_ACK && len == sizeof(AckPacket)) {
         AckPacket pkt;
         memcpy(&pkt, data, sizeof(pkt));
-        #if DEBUG_NETWORK
-        Serial.printf("[NET] ACK from display seq=%u\n", pkt.ack_seq);
-        #endif
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "ACK from display seq=%u\n", pkt.ack_seq);
     }
     /* ========= UNKNOWN ========= */
     else {
         Serial.printf("[NET] Unknown type 0x%02X len=%d\n", type, len);
     }
+}
+
+/* ------ _learnDisplayMac ------ */
+void Network::_learnDisplayMac(const uint8_t* mac) {
+    if (_hasDisplayMac) return;
+
+    memcpy(_displayMac, mac, 6);
+    _hasDisplayMac = true;
+
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, _displayMac, 6);
+    peer.channel = 0;
+    peer.encrypt = false;
+    if (!esp_now_is_peer_exist(_displayMac)) esp_now_add_peer(&peer);
+
+    Serial.println("[NET] Display MAC learned");
 }
 
 /* ============ LOGIC ============ */
@@ -118,6 +137,7 @@ void Network::_buildDataPacket(DataPacket& pkt, const WeatherData& w) {
 /* ========= constructor ========= */
 Network::Network()
     : _hasConfig(false)
+    , _hasDisplayMac(false)
     , _seqCounter(0)
     , _lastBroadcastMs(0)
     , _lastReconnectAttempt(0)
@@ -128,6 +148,7 @@ Network::Network()
     , _sensors(nullptr)
     , _rtc(nullptr)
 {
+    memset(_displayMac, 0, sizeof(_displayMac));
     memset(_ssid,      0, sizeof(_ssid));
     memset(_password,  0, sizeof(_password));
     memset(_ntpServer, 0, sizeof(_ntpServer));
@@ -226,9 +247,7 @@ void Network::update() {
         _buildDataPacket(pkt, w); 
         broadcastData(pkt);
         
-        #if DEBUG_NETWORK
-        Serial.println("[NET] Periodic broadcast sent");
-        #endif
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "Periodic broadcast sent");
     }
 }
 
@@ -294,3 +313,5 @@ void Network::saveConfig(const ConfigPacket& pkt) {
     Serial.printf("[NET] Config saved: SSID: %s\n", _ssid);
     if (changed) connectWiFi();
 }
+
+} // namespace AmbiSense::Hub

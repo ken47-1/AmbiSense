@@ -2,16 +2,22 @@
 #include "network/network.h"
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
 #include "config/DisplayConfig.h"
+#include "config/DebugConfig.h"
 
 /* ============ CORE ============ */
-#include <Arduino.h>
 #include <sys/time.h>
+
+namespace AmbiSense::Display {
 
 /* =============== INTERNAL STATE =============== */
 /* ============ SINGLETONS ============ */
+/* File-scope access point for the ESP-NOW C-style receive callback.
+   esp_now_register_recv_cb requires a free function pointer, so the
+   static trampoline `_onDataRecv` needs a way back into this instance. */
 Network* Network::_instance = nullptr;
 
 /* =============== INTERNAL HELPERS =============== */
@@ -32,10 +38,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
         
         uint8_t hubChan = pkt.channel;
         if (hubChan > 0 && hubChan <= 13 && hubChan != _lastKnownHubChan) {
-            esp_wifi_set_channel(hubChan, WIFI_SECOND_CHAN_NONE);
-            _lastKnownHubChan = hubChan;
-            Serial.printf("[NET] LOCKED to Hub Channel: %d\n", hubChan);
-            _seqInitialized = false;
+            _pendingHubChan = hubChan;
         }
 
         _lastPacketMs = millis();
@@ -66,9 +69,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
             uint8_t diff = pkt.seq - _lastSeq;
             if (diff != 1) {
                 _dropCount += (uint32_t)(diff - 1);
-                #if DEBUG_NETWORK
-                Serial.printf("[NET] Seq drop: last=%u now=%u dropped=%u\n", _lastSeq, pkt.seq, (uint8_t)(diff - 1));
-                #endif
+                DBG_PRINT(Debug::Ch::CH_NETWORK, "Seq drop: last=%u now=%u dropped=%u", _lastSeq, pkt.seq, (uint8_t)(diff - 1));
             }
         } else {
             _seqInitialized = true;
@@ -86,7 +87,7 @@ void Network::_handleReceived(const uint8_t* mac, const uint8_t* data, int len) 
     }
     /* ========= UNKNOWN ========= */
     else {
-        Serial.printf("[NET] Unknown type 0x%02X len=%d\n", type, len);
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "Unknown type 0x%02X len=%d\n", type, len);
     }
 }
 
@@ -96,7 +97,11 @@ void Network::_sendAck(const uint8_t* mac, uint8_t seq) {
     AckPacket pkt = {};
     pkt.type    = PACKET_TYPE_ACK;
     pkt.ack_seq = seq;
-    esp_now_send(mac, (uint8_t*)&pkt, sizeof(pkt));
+
+    esp_err_t err = esp_now_send(mac, (uint8_t*)&pkt, sizeof(pkt));
+    if (err != ESP_OK) {
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "ACK TX failed: %d\n", (int)err);
+    }
 }
 
 /* =============== PUBLIC API =============== */
@@ -130,7 +135,7 @@ void Network::begin() {
     WiFi.disconnect();
 
     esp_wifi_set_ps(WIFI_PS_NONE);
-    esp_wifi_set_channel(0, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     Serial.println("[NET] Scanning on ALL Channels...");
 
     if (esp_now_init() != ESP_OK) {
@@ -152,6 +157,14 @@ void Network::begin() {
 void Network::update() {
     uint32_t now = millis();
 
+    if (_pendingHubChan && _pendingHubChan != _lastKnownHubChan) {
+        esp_wifi_set_channel(_pendingHubChan, WIFI_SECOND_CHAN_NONE);
+        _lastKnownHubChan = _pendingHubChan;
+        _pendingHubChan   = 0;
+        _seqInitialized   = false;
+        Serial.printf("[NET] LOCKED to Hub Channel: %d\n", _lastKnownHubChan);
+    }
+
     if (_isConnected) {
         if (now - _lastPacketMs > HUB_OFFLINE_TIMEOUT_MS) {
             _isConnected = false;
@@ -167,9 +180,7 @@ void Network::update() {
             _currentScanChan++;
             if (_currentScanChan > 13) _currentScanChan = 1;
             esp_wifi_set_channel(_currentScanChan, WIFI_SECOND_CHAN_NONE);
-            #if DEBUG_NETWORK
-            Serial.printf("[NET] Scanning Channel: %d\n", _currentScanChan);
-            #endif
+            DBG_PRINT(Debug::Ch::CH_NETWORK, "Scanning Channel: %d\n", _currentScanChan);
         }
     }
 }
@@ -182,8 +193,11 @@ void Network::sendConfig(const char* ssid, const char* password, const char* ntp
     strlcpy(pkt.password, password, sizeof(pkt.password));
     strlcpy(pkt.ntp,      ntp,      sizeof(pkt.ntp));
     pkt.seq = _txSeq++;
-    esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
-    Serial.printf("[NET] Config TX seq=%u\n", pkt.seq);
+
+    esp_err_t err = esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
+    if (err != ESP_OK) {
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "Config TX failed: %d\n", (int)err);
+    }
 }
 
 void Network::sendCmd(uint8_t cmd) {
@@ -191,8 +205,10 @@ void Network::sendCmd(uint8_t cmd) {
     pkt.type = PACKET_TYPE_CMD;
     pkt.cmd  = cmd;
     pkt.seq  = _txSeq++;
-    esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
-    Serial.printf("[NET] CMD 0x%02X TX seq=%u\n", cmd, pkt.seq);
+    esp_err_t err = esp_now_send(ESPNOW_BROADCAST, (uint8_t*)&pkt, sizeof(pkt));
+    if (err != ESP_OK) {
+        DBG_PRINT(Debug::Ch::CH_NETWORK, "Command TX failed: %d\n", (int)err);
+    }
 }
 
 /* ============ STORAGE ============ */
@@ -208,9 +224,7 @@ bool Network::loadConfig() {
     strlcpy(_ntpServer, _prefs.getString("ntp", "asia.pool.ntp.org").c_str(), sizeof(_ntpServer));
     _prefs.end();
     _hasConfig = true;
-    #if DEBUG_NETWORK
-    Serial.printf("[NET] Config loaded: SSID: %s\n", _ssid);
-    #endif
+    DBG_PRINT(Debug::Ch::CH_NETWORK, "Config loaded: SSID: %s\n", _ssid);
     return true;
 }
 
@@ -226,3 +240,5 @@ void Network::saveConfig(const char* ssid, const char* password, const char* ntp
     _hasConfig = true;
     Serial.printf("[NET] Config saved: SSID=%s\n", _ssid);
 }
+
+} // namespace AmbiSense::Display

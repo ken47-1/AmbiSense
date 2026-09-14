@@ -2,12 +2,15 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/HubConfig.h"
 #include "config/HardwareConfig.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <DHT.h>
+
+namespace AmbiSense::Hub {
 
 /* =============== API =============== */
 class Sensors {
@@ -27,3 +30,5 @@ private:
     bool  _valid;
     uint32_t _lastRead;
 };
+
+} // namespace AmbiSense::Hub

@@ -3,7 +3,8 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/DisplayConfig.h"
 
 /* ============ CORE ============ */

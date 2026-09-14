@@ -2,10 +2,14 @@
 /* !!! AmbiSense Display !!! */
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/DisplayConfig.h"
-#include "display/display_manager.h"
+
+/* ============ PROJECT ============ */
+#include "debug/debug.h"
 #include "network/network.h"
+#include "display/display_manager.h"
 #include "display/ui.h"
 
 /* ============ CORE ============ */
@@ -14,12 +18,13 @@
 
 /* =============== INTERNAL STATE =============== */
 /* ============ STATIC VARS ============ */
-static DisplayManager display;
-static Network        network;
-static UI             ui;
-
 static DataPacket        g_lastPkt = {};
 static SemaphoreHandle_t g_pktMutex = nullptr;
+
+/* ============ SINGLETONS ============ */
+static AmbiSense::Display::DisplayManager display;
+static AmbiSense::Display::Network        network;
+static AmbiSense::Display::UI             ui;
 
 /* =============== INTERNAL HELPERS =============== */
 /* ============ CALLBACKS ============ */
@@ -44,6 +49,8 @@ static void onForceSync() {
 void setup() {
     Serial.begin(115200);
     Serial.println("[MAIN] AmbiSense Display booting...");
+
+    Debug::init();
 
     g_pktMutex = xSemaphoreCreateMutex();
 
@@ -71,7 +78,7 @@ void loop() {
     if (now - lastUIUpdate >= 100) {
         lastUIUpdate = now;
         
-        DataPacket localPkt;
+        DataPacket localPkt = {};
         if (g_pktMutex && xSemaphoreTake(g_pktMutex, portMAX_DELAY)) {
             localPkt = g_lastPkt;
             xSemaphoreGive(g_pktMutex);

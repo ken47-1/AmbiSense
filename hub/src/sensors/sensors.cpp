@@ -5,6 +5,8 @@
 /* ============ CORE ============ */
 #include <Arduino.h>
 
+namespace AmbiSense::Hub {
+
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
 Sensors::Sensors()
@@ -35,3 +37,5 @@ void Sensors::update() {
     _humidity = h;
     _valid    = true;
 }
+
+} // namespace AmbiSense::Hub

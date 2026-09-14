@@ -2,12 +2,15 @@
 #include "services/location/location_resolver.h"
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/HubConfig.h"
 
 /* ============ CORE ============ */
 #include <Arduino.h>
 #include <WiFi.h>
+
+namespace AmbiSense::Hub {
 
 /* =============== PUBLIC API =============== */
 /* ============ LIFECYCLE ============ */
@@ -63,24 +66,14 @@ void LocationResolver::update() {
 
 /* ============ ACTIONS ============ */
 String LocationResolver::getCityName(float lat, float lon) {
-    // If already cached, return immediately
-    if (_valid && _cachedCity.length() > 0) {
-        return _cachedCity;
-    }
-    
-    // Store pending request for update() to handle
-    _pendingLat = lat;
-    _pendingLon = lon;
+    if (_valid && _cachedCity.length() > 0) { return _cachedCity; }
+
+    _pendingLat   = lat;
+    _pendingLon   = lon;
     _fetchPending = true;
-    _retryCount = 0;
-    _valid = false;
-    
-    // Try once immediately if WiFi is ready
-    if (WiFi.status() == WL_CONNECTED) {
-        update();
-    }
-    
-    // Return whatever we have (likely "Unknown" for now)
+    _retryCount   = 0;
+    _valid        = false;
+
     return _cachedCity;
 }
 
@@ -99,7 +92,7 @@ String LocationResolver::_fetchFromAPI(float lat, float lon) {
 
     http.begin(url);
     http.setUserAgent("AmbiSense/1.0 (ESP32)");
-    http.setTimeout(10000);
+    http.setTimeout(2000);
 
     int code = http.GET();
 
@@ -127,3 +120,5 @@ String LocationResolver::_fetchFromAPI(float lat, float lon) {
 
     return city ? String(city) : "Unknown";
 }
+
+} // namespace AmbiSense::Hub

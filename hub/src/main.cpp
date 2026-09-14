@@ -2,8 +2,12 @@
 /* !!! AmbiSense Hub !!! */
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
+
+/* ============ PROJECT ============ */
+#include "debug/debug.h"
 #include "sensors/sensors.h"
 #include "time/rtc_manager.h"
 #include "services/weather/weather.h"
@@ -14,6 +18,8 @@
 
 /* =============== INTERNAL STATE =============== */
 /* ============ STATIC VARS ============ */
+using namespace AmbiSense::Hub;
+
 static Sensors    sensors;
 static RTCManager rtc;
 static Network    network;
@@ -39,7 +45,9 @@ static void onCmdReceived(const CmdPacket& pkt) {
 /* ========= setup ========= */
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[MAIN] AmbiSense Hub booting...");
+    Serial.println("[MAIN] AmbiSense Hub booting...");
+
+    Debug::init();
 
     setenv("TZ", "ICT-7", 1);
     tzset();

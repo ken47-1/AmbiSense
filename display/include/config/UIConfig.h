@@ -8,16 +8,22 @@ constexpr int SCR_H = 240;
 constexpr int MARGIN = 10;
 constexpr int DIV_MARGIN = 5;
 
+/* =============== STRINGS =============== */
+static const char* MONTH_NAMES[] = {
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+
+static const char* DAY_NAMES[] = {
+    "Sunday", "Monday", "Tuesday", "Wednesday",
+    "Thursday", "Friday", "Saturday"
+};
+
 /* =============== CLOCK =============== */
 constexpr int CLK_SIZE = 140;
 constexpr int CLK_R = CLK_SIZE / 2;
 constexpr int CLK_CX = CLK_SIZE / 2;
 constexpr int CLK_CY = CLK_SIZE / 2;
-
-/* =============== CONFIG SCREEN =============== */
-constexpr int TAB_H = 36;
-constexpr int KB_H = 120;
-constexpr int BTN_H = 36;
 
 /* =============== ROW OFFSETS (empirical centering) =============== */
 constexpr int R1_X_OFFSET = -2;
@@ -48,3 +54,8 @@ constexpr int R8_PAIR_GAP = 11;
 constexpr int CLK_X  = (SCR_W - CLK_SIZE - MARGIN + (CLK_SIZE/2 - CLK_R));
 constexpr int CLK_Y  = MARGIN;
 constexpr int VDIV_X = (CLK_X - MARGIN - 2);
+
+/* =============== CONFIG SCREEN =============== */
+constexpr int TAB_H = 36;
+constexpr int KB_H = 120;
+constexpr int BTN_H = 36;

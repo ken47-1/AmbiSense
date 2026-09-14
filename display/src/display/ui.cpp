@@ -1,10 +1,13 @@
 /* ==================== ui.cpp ==================== */
 #include "display/ui.h"
-#include "display/display_manager.h"
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/DisplayConfig.h"
+
+/* ============ PROJECT ============ */
+#include "display/display_manager.h"
 #include "fonts/inconsolata_14.h"
 #include "fonts/inconsolata_16.h"
 #include "fonts/material_design_other_20.h"
@@ -15,9 +18,14 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <Preferences.h>
+
+namespace AmbiSense::Display {
 
 /* =============== INTERNAL STATE =============== */
-/* ============ PALETTES ============ */
+/* ============ STATIC VARS ============ */
+Preferences g_prefs;
+
 static const Palette DARK = {
     .bg          = 0x000000,
     .text        = 0xFFFFFF,
@@ -31,7 +39,7 @@ static const Palette DARK = {
     .deep_orange = 0xFF6333,
     .orange      = 0xFF9630,
     .gold        = 0xFFCA28,
-    .green       = 0x00E621,   // :3
+    .green       = 0x00E621,   /* :3 */
     .wind        = 0x52CC58,
     .online      = 0x20E040,
     .pastel_blue = 0xB0E0FF,
@@ -51,30 +59,189 @@ static const Palette LIGHT = {
     .deep_orange = 0xFF6333,
     .orange      = 0xFF9630,
     .gold        = 0xFFD042,
-    .green       = 0x00E621,   // :3
+    .green       = 0x00E621,   /* :3 */
     .wind        = 0x5CE663,
     .online      = 0x20F040,
     .pastel_blue = 0x60C0FF,
     .sky_blue    = 0x55B0F7,
 };
 
-/* ============ STATIC MEMBERS ============ */
+/* ============ SINGLETONS ============ */
 const Palette* UI::theme = &DARK;
-UI*            UI::_instance = nullptr;
 lv_color_t     UI::_clockBuf[CLK_SIZE * CLK_SIZE];
 
-static const char* MONTH_NAMES[] = {
-    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
-
-static const char* DAY_NAMES[] = {
-    "Sunday", "Monday", "Tuesday", "Wednesday",
-    "Thursday", "Friday", "Saturday"
-};
-
 /* =============== INTERNAL HELPERS =============== */
-/* ============ UI FACTORY ============ */
+/* ============ CALLBACKS ============ */
+void UI::_onSettingsBtnCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->showScreen(Screen::CONFIG);
+}
+
+void UI::_onConfigSaveCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    if (ui->_onConfigSubmit) {
+        ui->_onConfigSubmit(
+            lv_textarea_get_text(ui->_taSSID),
+            lv_textarea_get_text(ui->_taPass),
+            lv_textarea_get_text(ui->_taNTP)
+        );
+    }
+    ui->_savePrefs();
+    ui->showScreen(Screen::DASHBOARD);
+}
+
+void UI::_onForceSyncCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    if (ui->_onForceSync) ui->_onForceSync();
+}
+
+void UI::_onBackBtnCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->showScreen(Screen::DASHBOARD);
+}
+
+void UI::_onShowPassCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->_passwordVisible = !ui->_passwordVisible;
+
+    if (ui->_passwordVisible) {
+        lv_textarea_set_password_mode(ui->_taPass, false);
+        /* Update button icon to show "hidden" state */
+        lv_obj_t* btn = lv_event_get_target(e);
+        lv_obj_t* label = lv_obj_get_child(btn, 0);
+        lv_label_set_text(label, LV_SYMBOL_EYE_CLOSE);
+    } else {
+        lv_textarea_set_password_mode(ui->_taPass, true);
+        lv_obj_t* btn = lv_event_get_target(e);
+        lv_obj_t* label = lv_obj_get_child(btn, 0);
+        lv_label_set_text(label, LV_SYMBOL_EYE_OPEN);
+    }
+}
+
+void UI::_onBrightnessSliderCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    int val = lv_slider_get_value(ui->_sliderBrightness);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", val);
+    lv_label_set_text(ui->_lblBrightnessVal, buf);
+    DisplayManager::setBrightness(val);
+}
+
+void UI::_onBrightnessReleasedCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    int val = lv_slider_get_value(ui->_sliderBrightness);
+
+    ui->_savePrefs();
+    Serial.printf("[UI] Brightness saved: %d%%\n", val);
+}
+
+void UI::_onThemeBtnCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+
+    /* Remember which tab the user was on */
+    uint16_t activeTab = lv_tabview_get_tab_act(ui->_tabviewConfig);
+
+    /* Toggle the theme values */
+    ui->_darkTheme = !ui->_darkTheme;
+    UI::theme = ui->_darkTheme ? &DARK : &LIGHT;
+    ui->_savePrefs();
+
+    /* Tell LVGL to switch its internal default theme */
+    lv_disp_t* display = lv_disp_get_default();
+    lv_theme_t* th = lv_theme_default_init(display,
+                                           lv_palette_main(LV_PALETTE_BLUE),
+                                           lv_palette_main(LV_PALETTE_RED),
+                                           ui->_darkTheme,
+                                           &lv_font_montserrat_14);
+    lv_disp_set_theme(display, th);
+
+    /* Keep pointers to old screens so we can delete them safely later */
+    lv_obj_t* oldDash = ui->_scrDashboard;
+    lv_obj_t* oldConfig = ui->_scrConfig;
+
+    /* Rebuild the screens (these functions will now use the new UI::theme) */
+    ui->_buildDashboard();
+    ui->_buildConfig();
+
+    /* Restore the active tab and load the screen */
+    lv_tabview_set_act(ui->_tabviewConfig, activeTab, LV_ANIM_OFF);
+    lv_scr_load(ui->_scrConfig);
+    ui->_currentScreen = Screen::CONFIG;
+
+    if (oldDash) lv_obj_del_async(oldDash);
+    if (oldConfig) lv_obj_del_async(oldConfig);
+}
+
+void UI::_onSecondsSwitchCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->_showSeconds = lv_obj_has_state(ui->_swSeconds, LV_STATE_CHECKED);
+    ui->_savePrefs();
+}
+
+void UI::_onDateFmtDropdownCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+    ui->_dateFmt = (lv_dropdown_get_selected(ui->_ddDateFmt) == 0) ? DateFormat::TEXT : DateFormat::NUMERIC;
+    ui->_savePrefs();
+}
+
+void UI::_onTabChangeCb(lv_event_t* e) {
+    UI* ui = (UI*)lv_event_get_user_data(e);
+
+    if (ui->_kbConfig && !lv_obj_has_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_t* ta = lv_keyboard_get_textarea(ui->_kbConfig);
+        if (ta) {
+            lv_obj_t* tab = lv_obj_get_parent(ta);
+            lv_obj_set_style_pad_bottom(tab, 50, 0);
+            lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+        }
+        lv_obj_add_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void UI::_onTaEvent(lv_event_t* e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t* ta = lv_event_get_target(e);
+    lv_obj_t* kb = (lv_obj_t*)lv_event_get_user_data(e);
+
+    if (code == LV_EVENT_FOCUSED) {
+        lv_keyboard_set_textarea(kb, ta);
+        lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
+
+        lv_obj_t* tab = lv_obj_get_parent(ta);
+        lv_obj_set_style_pad_bottom(tab, 130, 0);
+        lv_obj_update_layout(tab);
+        lv_obj_scroll_to_view(ta, LV_ANIM_ON);
+    }
+    else if (code == LV_EVENT_DEFOCUSED) {
+        if (lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_t* tab = lv_obj_get_parent(ta);
+            lv_obj_set_style_pad_bottom(tab, 50, 0);
+            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+        }
+    }
+}
+
+void UI::_onKbEvent(lv_event_t* e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t* kb = lv_event_get_target(e);
+
+    if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+        lv_obj_t* ta = lv_keyboard_get_textarea(kb);
+        if (ta) {
+            if (!lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
+                lv_obj_t* tab = lv_obj_get_parent(ta);
+                lv_obj_set_style_pad_bottom(tab, 60, 0);
+                lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+                lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+            }
+        }
+        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+/* ============ LOGIC ============ */
+/* ========= UI FACTORY ========= */
 lv_obj_t* UI::_makeLabel(lv_obj_t* parent, const char* txt, const lv_font_t* font,
                          uint32_t color, int x, int y) {
     lv_obj_t* lb = lv_label_create(parent);
@@ -105,155 +272,41 @@ void UI::_makeVdiv(lv_obj_t* parent, int x, int y, int h, int thickness, uint32_
     lv_obj_clear_flag(r, LV_OBJ_FLAG_CLICKABLE);
 }
 
-/* ============ STORAGE ============ */
+/* ========= STORAGE ========= */
 void UI::_loadPrefs() {
-    _prefs.begin("ui_prefs", true);
-    _savedSSID       = _prefs.getString("savedSSID", "");
-    _savedPass       = _prefs.getString("savedPass", "");
-    _savedNTP        = _prefs.getString("savedNTP", "pool.ntp.org");
-    _savedBrightness = _prefs.getUChar("brightness", 80);
-    _darkTheme       = _prefs.getBool("darkTheme", true);
-    _showSeconds     = _prefs.getBool("showSeconds", false);
-    _dateFmt         = _prefs.getBool("dateFmtText", true) ? DateFormat::TEXT : DateFormat::NUMERIC;
-    _prefs.end();
+    g_prefs.begin("ui_prefs", true);
+
+    g_prefs.getString("savedSSID", "").toCharArray(_savedSSID, sizeof(_savedSSID));
+    g_prefs.getString("savedPass", "").toCharArray(_savedPass, sizeof(_savedPass));
+    g_prefs.getString("savedNTP", "pool.ntp.org").toCharArray(_savedNTP, sizeof(_savedNTP));
+
+    _savedBrightness = g_prefs.getUChar("brightness", 80);
+    _darkTheme       = g_prefs.getBool("darkTheme", true);
+    _showSeconds     = g_prefs.getBool("showSeconds", false);
+    _dateFmt         = g_prefs.getBool("dateFmtText", true) ? DateFormat::TEXT : DateFormat::NUMERIC;
+
+    g_prefs.end();
 }
 
 void UI::_savePrefs() {
-    _prefs.begin("ui_prefs", false);
-    if (_taSSID) { _prefs.putString("savedSSID", lv_textarea_get_text(_taSSID)); }
-    if (_taPass) { _prefs.putString("savedPass", lv_textarea_get_text(_taPass)); }
-    if (_taNTP)  { _prefs.putString("savedNTP",  lv_textarea_get_text(_taNTP)); }
-    if (_sliderBrightness) { _prefs.putUChar("brightness", lv_slider_get_value(_sliderBrightness)); }
-    _prefs.putBool("dateFmtText", _dateFmt == DateFormat::TEXT);
-    _prefs.putBool("showSeconds", _showSeconds);
-    _prefs.putBool("darkTheme", _darkTheme);
-    _prefs.end();
-}
+    g_prefs.begin("ui_prefs", false);
 
-/* =============== PUBLIC API =============== */
-/* ============ LIFECYCLE ============ */
-UI::UI()
-    : _scrDashboard(nullptr)
-    , _scrConfig(nullptr)
-    , _lblWeatherIcon(nullptr)
-    , _lblWeatherTemp(nullptr)
-    , _lblCondition(nullptr)
-    , _lblLocationIcon(nullptr)
-    , _lblLocation(nullptr)
-    , _lblFeelsLike(nullptr)
-    , _lblHumidIcon(nullptr)
-    , _lblHumidVal(nullptr)
-    , _lblPressIcon(nullptr)
-    , _lblPressVal(nullptr)
-    , _lblWindIcon(nullptr)
-    , _lblWindDirVal(nullptr)
-    , _lblSunriseIcon(nullptr)
-    , _lblSunriseVal(nullptr)
-    , _lblSunsetIcon(nullptr)
-    , _lblSunsetVal(nullptr)
-    , _lblRoomHeader(nullptr)
-    , _lblTempIcon(nullptr)
-    , _lblRoomTempVal(nullptr)
-    , _lblHumiIcon(nullptr)
-    , _lblRoomHumidVal(nullptr)
-    , _lblTime(nullptr)
-    , _lblDate(nullptr)
-    , _lblDay(nullptr)
-    , _canvas(nullptr)
-    , _statusDot(nullptr)
-    , _btnSettings(nullptr)
-    , _tabviewConfig(nullptr)
-    , _taSSID(nullptr)
-    , _taPass(nullptr)
-    , _taNTP(nullptr)
-    , _kbConfig(nullptr)
-    , _btnTheme(nullptr)
-    , _lblTheme(nullptr)
-    , _swSeconds(nullptr)
-    , _ddDateFmt(nullptr)
-    , _passwordVisible(false)
-    , _prefs()
-    , _savedSSID()
-    , _savedPass()
-    , _savedNTP()
-    , _dateFmt(DateFormat::TEXT)
-    , _showSeconds(false)
-    , _darkTheme(true)
-    , _currentScreen(Screen::DASHBOARD)
-    , _lastWeatherValidMs(0)
-    , _lastRoomValidMs(0)
-    , _onConfigSubmit(nullptr)
-    , _onForceSync(nullptr)
-{
-    _instance = this;
-}
+    if (_taSSID) g_prefs.putString("savedSSID", lv_textarea_get_text(_taSSID));
+    if (_taPass) g_prefs.putString("savedPass", lv_textarea_get_text(_taPass));
+    if (_taNTP)  g_prefs.putString("savedNTP",  lv_textarea_get_text(_taNTP));
 
-void UI::begin() {
-    _loadPrefs();
-    theme = _darkTheme ? &DARK : &LIGHT;
-    DisplayManager::setBrightness(_savedBrightness);
-
-    /* Sync the global LVGL engine theme with saved setting */
-    lv_disp_t* disp = lv_disp_get_default();
-    lv_theme_t* th = lv_theme_default_init(disp, 
-                                           lv_palette_main(LV_PALETTE_BLUE), 
-                                           lv_palette_main(LV_PALETTE_CYAN), 
-                                           _darkTheme, 
-                                           &lv_font_montserrat_14);
-    lv_disp_set_theme(disp, th);
-
-    _buildDashboard();
-    _buildConfig();
-    Serial.println("[UI] Initialized.");
-}
-
-void UI::update(const DataPacket& pkt, bool hubOnline) {
-    if (_currentScreen != Screen::DASHBOARD) return;
-    
-    uint32_t now = millis();
-    static uint8_t lastSeq = 0;
-    
-    /* Only update timestamp when we receive a NEW packet */
-    if (pkt.seq != lastSeq) {
-        lastSeq = pkt.seq;
-        if (pkt.weatherValid) _lastWeatherValidMs = now;
-        if (pkt.roomValid) _lastRoomValidMs = now;
+    if (_sliderBrightness) {
+        g_prefs.putUChar("brightness", (uint8_t)lv_slider_get_value(_sliderBrightness));
     }
-    
-    /* Invalidate immediately if hub is offline */
-    DataPacket modified = pkt;
-    if (!hubOnline) {
-        modified.weatherValid = false;
-        modified.roomValid = false;
-        modified.timestamp = 0;
-    } 
-    /* Otherwise check timeout */
-    else {
-        if (_lastWeatherValidMs > 0 && (now - _lastWeatherValidMs) > STALE_DATA_TIMEOUT_MS) {
-            modified.weatherValid = false;
-        }
-        if (_lastRoomValidMs > 0 && (now - _lastRoomValidMs) > STALE_DATA_TIMEOUT_MS) {
-            modified.roomValid = false;
-        }
-    }
-    
-    _updateDashboard(modified, hubOnline);
+
+    g_prefs.putBool("dateFmtText", _dateFmt == DateFormat::TEXT);
+    g_prefs.putBool("showSeconds", _showSeconds);
+    g_prefs.putBool("darkTheme",   _darkTheme);
+
+    g_prefs.end();
 }
 
-void UI::showScreen(Screen s) {
-    _currentScreen = s;
-    lv_scr_load(s == Screen::DASHBOARD ? _scrDashboard : _scrConfig);
-}
-
-void UI::setOnConfigSubmit(void (*cb)(const char*, const char*, const char*)) {
-    _onConfigSubmit = cb;
-}
-
-void UI::setOnForceSyncCmd(void (*cb)()) {
-    _onForceSync = cb;
-}
-
-/* ============ SCREEN BUILDERS ============ */
+/* ========= SCREEN BUILDERS ========= */
 void UI::_buildDashboard() {
     _scrDashboard = lv_obj_create(NULL);
     lv_obj_add_flag(_scrDashboard, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
@@ -271,11 +324,11 @@ void UI::_buildDashboard() {
 
     /* Row 1: Weather icon + temp */
     {
-        const int r1_y     = MARGIN - 2;
+        const int r1_y = MARGIN - 2;
 
         _lblWeatherIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8B\x97", &material_design_weather_40, theme->unknown, 0, r1_y);
         _lblWeatherTemp = _makeLabel(_scrDashboard, "--\xC2\xB0""C", &lv_font_montserrat_32, theme->text, 0, r1_y);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int iw = lv_obj_get_width(_lblWeatherIcon);
         int tw = lv_obj_get_width(_lblWeatherTemp);
@@ -316,14 +369,14 @@ void UI::_buildDashboard() {
 
     /* Row 3: Location */
     {
-        const int r3_y     = 68;
+        const int r3_y = 68;
 
         _lblLocationIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x8D\x8E", &material_design_other_20, theme->unknown, 0, r3_y + 0);
         _lblLocation = _makeLabel(_scrDashboard, "Unknown", &lv_font_montserrat_16, theme->text, 0, r3_y);
-        
+
         lv_label_set_long_mode(_lblLocation, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_set_style_anim_speed(_lblLocation, 15, 0);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int iw = lv_obj_get_width(_lblLocationIcon);
         int tw = lv_obj_get_width(_lblLocation);
@@ -345,13 +398,13 @@ void UI::_buildDashboard() {
 
     /* Row 5: Humidity + Pressure */
     {
-        const int r5_y        = 125;
-        
+        const int r5_y = 125;
+
         _lblHumidIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r5_y - 2);
         _lblHumidVal  = _makeLabel(_scrDashboard, "--%", &inconsolata_14, theme->text, 0, r5_y);
         _lblPressIcon = _makeLabel(_scrDashboard, "\xF3\xB0\xA1\xB5", &material_design_other_20, theme->pastel_blue, 0, r5_y - 2);
         _lblPressVal  = _makeLabel(_scrDashboard, "---- hPa", &inconsolata_14, theme->text, 0, r5_y);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int hiw = lv_obj_get_width(_lblHumidIcon);
         int hvw = lv_obj_get_width(_lblHumidVal);
@@ -368,11 +421,11 @@ void UI::_buildDashboard() {
 
     /* Row 6: Wind Speed & Direction */
     {
-        const int r6_y        = 144;
+        const int r6_y = 144;
 
         _lblWindIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9D", &material_design_other_20, theme->wind, 0, r6_y - 1);
         _lblWindDirVal = _makeLabel(_scrDashboard, "-- km/h --", &inconsolata_16, theme->text, 0, r6_y);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int iw = lv_obj_get_width(_lblWindIcon);
         int tw = lv_obj_get_width(_lblWindDirVal);
@@ -384,13 +437,13 @@ void UI::_buildDashboard() {
 
     /* Row 7: Sunrise & Sunset */
     {
-        const int r7_y     = 165;
+        const int r7_y = 165;
 
         _lblSunriseIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9C", &material_design_other_20, theme->gold, 0, r7_y - 1);
         _lblSunriseVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
         _lblSunsetIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x9B", &material_design_other_20, theme->deep_orange, 0, r7_y - 1);
         _lblSunsetVal = _makeLabel(_scrDashboard, "--:--", &inconsolata_16, theme->text, 0, r7_y);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int riw = lv_obj_get_width(_lblSunriseIcon);
         int rvw = lv_obj_get_width(_lblSunriseVal);
@@ -407,14 +460,13 @@ void UI::_buildDashboard() {
 
     /* Row 8: Room sensors */
     {
-        const int r8_header_y = 195;
-        const int r8_y        = 217;
-        
+        const int r8_y = 217;
+
         _lblTempIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x94\x8F", &material_design_other_20, theme->deep_orange, 0, r8_y - 2);
         _lblRoomTempVal = _makeLabel(_scrDashboard, "--.-\xC2\xB0""C", &inconsolata_16, theme->text, 0, r8_y);
         _lblHumiIcon = _makeLabel(_scrDashboard, "\xF3\xB0\x96\x8E", &material_design_other_20, theme->sky_blue, 0, r8_y - 2);
         _lblRoomHumidVal = _makeLabel(_scrDashboard, "--.-%", &inconsolata_16, theme->text, 0, r8_y);
-        
+
         lv_obj_update_layout(_scrDashboard);
         int tiw = lv_obj_get_width(_lblTempIcon);
         int tvw = lv_obj_get_width(_lblRoomTempVal);
@@ -522,7 +574,7 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
 
         lv_obj_update_layout(_lblLocationIcon);
         lv_obj_update_layout(_lblLocation);
-        
+
         int iw = lv_obj_get_width(_lblLocationIcon);
         int natural_tw = lv_obj_get_self_width(_lblLocation);
         int max_tw = VDIV_X - (MARGIN * 2) - iw - R3_ICON_GAP;
@@ -631,7 +683,11 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
         }
         lv_label_set_text(_lblDate, buf);
         lv_label_set_text(_lblDay, DAY_NAMES[t->tm_wday]);
-        _drawAnalogClock(t->tm_hour, t->tm_min, t->tm_sec);
+        
+        if (t->tm_sec != _lastClockSecond) {
+            _drawAnalogClock(t->tm_hour, t->tm_min, t->tm_sec);
+            _lastClockSecond = t->tm_sec;
+        }
     }
 
     /* Status dot */
@@ -644,7 +700,7 @@ void UI::_updateDashboard(const DataPacket& pkt, bool hubOnline) {
         } else {
             targetCol = lv_color_hex(theme->online);
         }
-        
+
         lv_color_t currentCol = lv_obj_get_style_bg_color(_statusDot, 0);
         if (targetCol.full != currentCol.full) {
             lv_obj_set_style_bg_color(_statusDot, targetCol, 0);
@@ -661,7 +717,7 @@ void UI::_drawAnalogClock(int h, int m, int s) {
     arc.width = 2;
     arc.rounded = 1;
     lv_canvas_draw_arc(_canvas, CLK_CX, CLK_CY, CLK_R, 0, 360, &arc);
-    
+
     arc.color = lv_color_hex(theme->dim);
     arc.width = 1;
     lv_canvas_draw_arc(_canvas, CLK_CX, CLK_CY, CLK_R - 3, 0, 360, &arc);
@@ -828,14 +884,14 @@ void UI::_buildConfig() {
     lv_obj_set_style_bg_color(tabSettings, lv_color_hex(theme->bg), 0);
 
     /* SSID */
-    // Label
+    /* Label */
     lv_obj_t* lblSSID = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblSSID, 5, 10);
     lv_label_set_text(lblSSID, "SSID");
     lv_obj_set_style_text_font(lblSSID, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblSSID, lv_color_hex(theme->text), 0);
 
-    // TextArea
+    /* TextArea */
     _taSSID = lv_textarea_create(tabWifiNtp);
     lv_obj_set_size(_taSSID, SCR_W - 20, 35);
     lv_obj_set_pos(_taSSID, 5, 30);
@@ -843,17 +899,17 @@ void UI::_buildConfig() {
     lv_textarea_set_placeholder_text(_taSSID, "Network name");
     lv_obj_clear_flag(_taSSID, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taSSID, &lv_font_montserrat_14, 0);
-    if (_savedSSID.length() > 0) lv_textarea_set_text(_taSSID, _savedSSID.c_str());
+    if (_savedSSID[0] != '\0') lv_textarea_set_text(_taSSID, _savedSSID);
 
     /* Password */
-    // Label
+    /* Label */
     lv_obj_t* lblPassword = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblPassword, 5, 80);
     lv_label_set_text(lblPassword, "Password");
     lv_obj_set_style_text_font(lblPassword, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblPassword, lv_color_hex(theme->text), 0);
 
-    // TextArea
+    /* TextArea */
     _taPass = lv_textarea_create(tabWifiNtp);
     lv_obj_set_size(_taPass, SCR_W - 20, 35);
     lv_obj_set_pos(_taPass, 5, 100);
@@ -862,9 +918,9 @@ void UI::_buildConfig() {
     lv_textarea_set_placeholder_text(_taPass, "Password");
     lv_obj_clear_flag(_taPass, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taPass, &lv_font_montserrat_14, 0);
-    if (_savedPass.length() > 0) lv_textarea_set_text(_taPass, _savedPass.c_str());
+    if (_savedPass[0] != '\0') lv_textarea_set_text(_taPass, _savedPass);
 
-    // Show Password button
+    /* Show Password button */
     lv_obj_t* btnShowPass = lv_btn_create(tabWifiNtp);
     lv_obj_set_size(btnShowPass, 25, 25);
     lv_obj_align_to(btnShowPass, _taPass, LV_ALIGN_RIGHT_MID, 7, 0);
@@ -877,32 +933,32 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(btnShowPass, _onShowPassCb, LV_EVENT_CLICKED, this);
 
     /* NTP Server */
-    // Label
+    /* Label */
     lv_obj_t* lblNTP = lv_label_create(tabWifiNtp);
     lv_obj_set_pos(lblNTP, 5, 150);
     lv_label_set_text(lblNTP, "NTP Server");
     lv_obj_set_style_text_font(lblNTP, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblNTP, lv_color_hex(theme->text), 0);
 
-    // TextArea
+    /* TextArea */
     _taNTP = lv_textarea_create(tabWifiNtp);
     lv_obj_set_size(_taNTP, SCR_W - 20, 35);
     lv_obj_set_pos(_taNTP, 5, 170);
     lv_textarea_set_one_line(_taNTP, true);
-    lv_textarea_set_text(_taNTP, _savedNTP.c_str());
+    lv_textarea_set_text(_taNTP, _savedNTP);
     lv_textarea_set_placeholder_text(_taNTP, "NTP Server");
     lv_obj_clear_flag(_taNTP, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(_taNTP, &lv_font_montserrat_14, 0);
 
     /* Brightness Row */
-    // Label
+    /* Label */
     lv_obj_t* lblBright = lv_label_create(tabSettings);
     lv_obj_set_pos(lblBright, 10, 15);
     lv_label_set_text(lblBright, "Brightness");
     lv_obj_set_style_text_font(lblBright, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblBright, lv_color_hex(theme->text), 0);
 
-    // Slider
+    /* Slider */
     _sliderBrightness = lv_slider_create(tabSettings);
     lv_obj_set_size(_sliderBrightness, 150, 16);
     lv_obj_set_pos(_sliderBrightness, SCR_W - 173, 17);
@@ -911,7 +967,7 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(_sliderBrightness, _onBrightnessSliderCb, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(_sliderBrightness, _onBrightnessReleasedCb, LV_EVENT_RELEASED, this);
 
-    // Current value
+    /* Current value */
     _lblBrightnessVal = lv_label_create(tabSettings);
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", DisplayManager::getBrightness());
@@ -922,14 +978,14 @@ void UI::_buildConfig() {
     lv_obj_align_to(_lblBrightnessVal, _sliderBrightness, LV_ALIGN_OUT_LEFT_MID, -5, 0);
 
     /* Theme row */
-    // Label
+    /* Label */
     lv_obj_t* lblTheme = lv_label_create(tabSettings);
     lv_obj_set_pos(lblTheme, 10, 60);
     lv_label_set_text(lblTheme, "Theme");
     lv_obj_set_style_text_font(lblTheme, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTheme, lv_color_hex(theme->text), 0);
-    
-    // Toggle button
+
+    /* Toggle button */
     _btnTheme = lv_btn_create(tabSettings);
     lv_obj_set_size(_btnTheme, 64, 32);
     lv_obj_set_pos(_btnTheme, SCR_W - 74, 52);
@@ -944,14 +1000,14 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(_btnTheme, _onThemeBtnCb, LV_EVENT_CLICKED, this);
 
     /* Show seconds row */
-    // Label
+    /* Label */
     lv_obj_t* lblSeconds = lv_label_create(tabSettings);
     lv_obj_set_pos(lblSeconds, 10, 105);
     lv_label_set_text(lblSeconds, "Show seconds");
     lv_obj_set_style_text_font(lblSeconds, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblSeconds, lv_color_hex(theme->text), 0);
 
-    // Switch
+    /* Switch */
     _swSeconds = lv_switch_create(tabSettings);
     lv_obj_set_pos(_swSeconds, SCR_W - 60, 101);
     lv_obj_set_size(_swSeconds, 50, 24);
@@ -959,14 +1015,14 @@ void UI::_buildConfig() {
     lv_obj_add_event_cb(_swSeconds, _onSecondsSwitchCb, LV_EVENT_VALUE_CHANGED, this);
 
     /* Date format row */
-    // Label
+    /* Label */
     lv_obj_t* lblDateFmt = lv_label_create(tabSettings);
     lv_obj_set_pos(lblDateFmt, 10, 150);
     lv_label_set_text(lblDateFmt, "Date format");
     lv_obj_set_style_text_font(lblDateFmt, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblDateFmt, lv_color_hex(theme->text), 0);
 
-    // Dropdown
+    /* Dropdown */
     _ddDateFmt = lv_dropdown_create(tabSettings);
     lv_dropdown_set_options(_ddDateFmt, "07 Mar 2024\n07/03/2024");
     lv_obj_set_size(_ddDateFmt, 130, 36);
@@ -980,186 +1036,133 @@ void UI::_buildConfig() {
     lv_obj_set_size(_kbConfig, SCR_W, KB_H);
     lv_obj_align(_kbConfig, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(_kbConfig, LV_OBJ_FLAG_HIDDEN);
-    
+
     lv_obj_add_event_cb(_kbConfig, _onKbEvent, LV_EVENT_ALL, NULL);
 
     lv_obj_t* tas[] = {_taSSID, _taPass, _taNTP};
-    for(int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         lv_obj_clear_flag(tas[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         lv_obj_add_event_cb(tas[i], _onTaEvent, LV_EVENT_ALL, _kbConfig);
     }
 }
 
-/* =============== STATIC CALLBACKS =============== */
-void UI::_onSettingsBtnCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    ui->showScreen(Screen::CONFIG);
+/* =============== PUBLIC API =============== */
+/* ============ LIFECYCLE ============ */
+UI::UI()
+    : _scrDashboard(nullptr)
+    , _scrConfig(nullptr)
+    , _lblWeatherIcon(nullptr)
+    , _lblWeatherTemp(nullptr)
+    , _lblCondition(nullptr)
+    , _lblLocationIcon(nullptr)
+    , _lblLocation(nullptr)
+    , _lblFeelsLike(nullptr)
+    , _lblHumidIcon(nullptr)
+    , _lblHumidVal(nullptr)
+    , _lblPressIcon(nullptr)
+    , _lblPressVal(nullptr)
+    , _lblWindIcon(nullptr)
+    , _lblWindDirVal(nullptr)
+    , _lblSunriseIcon(nullptr)
+    , _lblSunriseVal(nullptr)
+    , _lblSunsetIcon(nullptr)
+    , _lblSunsetVal(nullptr)
+    , _lblRoomHeader(nullptr)
+    , _lblTempIcon(nullptr)
+    , _lblRoomTempVal(nullptr)
+    , _lblHumiIcon(nullptr)
+    , _lblRoomHumidVal(nullptr)
+    , _lblTime(nullptr)
+    , _lblDate(nullptr)
+    , _lblDay(nullptr)
+    , _canvas(nullptr)
+    , _statusDot(nullptr)
+    , _btnSettings(nullptr)
+    , _tabviewConfig(nullptr)
+    , _taSSID(nullptr)
+    , _taPass(nullptr)
+    , _taNTP(nullptr)
+    , _kbConfig(nullptr)
+    , _btnTheme(nullptr)
+    , _lblTheme(nullptr)
+    , _swSeconds(nullptr)
+    , _ddDateFmt(nullptr)
+    , _passwordVisible(false)
+    , _savedSSID()
+    , _savedPass()
+    , _savedNTP()
+    , _dateFmt(DateFormat::TEXT)
+    , _showSeconds(false)
+    , _darkTheme(true)
+    , _currentScreen(Screen::DASHBOARD)
+    , _lastWeatherValidMs(0)
+    , _lastRoomValidMs(0)
+    , _onConfigSubmit(nullptr)
+    , _onForceSync(nullptr) {
 }
 
-void UI::_onConfigSaveCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    if (ui->_onConfigSubmit) {
-        ui->_onConfigSubmit(
-            lv_textarea_get_text(ui->_taSSID),
-            lv_textarea_get_text(ui->_taPass),
-            lv_textarea_get_text(ui->_taNTP)
-        );
-    }
-    ui->_savePrefs();
-    ui->showScreen(Screen::DASHBOARD);
-}
+void UI::begin() {
+    _loadPrefs();
+    theme = _darkTheme ? &DARK : &LIGHT;
+    DisplayManager::setBrightness(_savedBrightness);
 
-void UI::_onForceSyncCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    if (ui->_onForceSync) ui->_onForceSync();
-}
-
-void UI::_onBackBtnCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    ui->showScreen(Screen::DASHBOARD);
-}
-
-void UI::_onShowPassCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    ui->_passwordVisible = !ui->_passwordVisible;
-    
-    if (ui->_passwordVisible) {
-        lv_textarea_set_password_mode(ui->_taPass, false);
-        // Update button icon to show "hidden" state
-        lv_obj_t* btn = lv_event_get_target(e);
-        lv_obj_t* label = lv_obj_get_child(btn, 0);
-        lv_label_set_text(label, LV_SYMBOL_EYE_CLOSE);
-    } else {
-        lv_textarea_set_password_mode(ui->_taPass, true);
-        lv_obj_t* btn = lv_event_get_target(e);
-        lv_obj_t* label = lv_obj_get_child(btn, 0);
-        lv_label_set_text(label, LV_SYMBOL_EYE_OPEN);
-    }
-}
-
-void UI::_onBrightnessSliderCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    int val = lv_slider_get_value(ui->_sliderBrightness);
-    char buf[8];
-    snprintf(buf, sizeof(buf), "%d%%", val);
-    lv_label_set_text(ui->_lblBrightnessVal, buf);
-    DisplayManager::setBrightness(val);
-}
-
-void UI::_onBrightnessReleasedCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    int val = lv_slider_get_value(ui->_sliderBrightness);
-    
-    // Save only brightness
-    Preferences prefs;
-    prefs.begin("ui_prefs", false);
-    prefs.putUChar("brightness", val);
-    prefs.end();
-    
-    Serial.printf("[UI] Brightness saved: %d%%\n", val);
-}
-
-void UI::_onThemeBtnCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-
-    // Remember which tab the user was on
-    uint16_t activeTab = lv_tabview_get_tab_act(ui->_tabviewConfig);
-
-    // Toggle the theme values
-    ui->_darkTheme = !ui->_darkTheme;
-    UI::theme = ui->_darkTheme ? &DARK : &LIGHT;
-    ui->_savePrefs();
-
-    /* Tell LVGL to switch its internal default theme */
-    lv_disp_t* display = lv_disp_get_default();
-    lv_theme_t* th = lv_theme_default_init(display, 
-                                           lv_palette_main(LV_PALETTE_BLUE), 
-                                           lv_palette_main(LV_PALETTE_RED), 
-                                           ui->_darkTheme, 
+    /* Sync the global LVGL engine theme with saved setting */
+    lv_disp_t* disp = lv_disp_get_default();
+    lv_theme_t* th = lv_theme_default_init(disp,
+                                           lv_palette_main(LV_PALETTE_BLUE),
+                                           lv_palette_main(LV_PALETTE_CYAN),
+                                           _darkTheme,
                                            &lv_font_montserrat_14);
-    lv_disp_set_theme(display, th);
+    lv_disp_set_theme(disp, th);
 
-    // Keep pointers to old screens so we can delete them safely later
-    lv_obj_t* oldDash = ui->_scrDashboard;
-    lv_obj_t* oldConfig = ui->_scrConfig;
-
-    // Rebuild the screens (these functions will now use the new UI::theme)
-    ui->_buildDashboard();
-    ui->_buildConfig();
-
-    // Restore the active tab and load the screen
-    lv_tabview_set_act(ui->_tabviewConfig, activeTab, LV_ANIM_OFF);
-    lv_scr_load(ui->_scrConfig);
-    ui->_currentScreen = Screen::CONFIG;
-
-    if (oldDash) lv_obj_del_async(oldDash);
-    if (oldConfig) lv_obj_del_async(oldConfig);
+    _buildDashboard();
+    _buildConfig();
+    Serial.println("[UI] Initialized.");
 }
 
-void UI::_onSecondsSwitchCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    ui->_showSeconds = lv_obj_has_state(ui->_swSeconds, LV_STATE_CHECKED);
-    ui->_savePrefs();
-}
+void UI::update(const DataPacket& pkt, bool hubOnline) {
+    if (_currentScreen != Screen::DASHBOARD) return;
 
-void UI::_onDateFmtDropdownCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    ui->_dateFmt = (lv_dropdown_get_selected(ui->_ddDateFmt) == 0) ? DateFormat::TEXT : DateFormat::NUMERIC;
-    ui->_savePrefs();
-}
+    uint32_t now = millis();
 
-void UI::_onTabChangeCb(lv_event_t* e) {
-    UI* ui = (UI*)lv_event_get_user_data(e);
-    
-    if (ui->_kbConfig && !lv_obj_has_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN)) {
-        lv_obj_t* ta = lv_keyboard_get_textarea(ui->_kbConfig);
-        if (ta) {
-            lv_obj_t* tab = lv_obj_get_parent(ta);
-            lv_obj_set_style_pad_bottom(tab, 50, 0);
-            lv_obj_clear_state(ta, LV_STATE_FOCUSED);
-            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
-        }
-        lv_obj_add_flag(ui->_kbConfig, LV_OBJ_FLAG_HIDDEN);
+    /* Only update timestamp when we receive a NEW packet */
+    if (pkt.seq != _lastPacketSeq) {
+        _lastPacketSeq = pkt.seq;
+        if (pkt.weatherValid) _lastWeatherValidMs = now;
+        if (pkt.roomValid)    _lastRoomValidMs    = now;
     }
-}
 
-void UI::_onTaEvent(lv_event_t* e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t* ta = lv_event_get_target(e);
-    lv_obj_t* kb = (lv_obj_t*)lv_event_get_user_data(e);
-
-    if (code == LV_EVENT_FOCUSED) {
-        lv_keyboard_set_textarea(kb, ta);
-        lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
-        
-        lv_obj_t* tab = lv_obj_get_parent(ta);
-        lv_obj_set_style_pad_bottom(tab, 130, 0);
-        lv_obj_update_layout(tab);
-        lv_obj_scroll_to_view(ta, LV_ANIM_ON);
-    } 
-    else if (code == LV_EVENT_DEFOCUSED) {
-        if (lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
-            lv_obj_t* tab = lv_obj_get_parent(ta);
-            lv_obj_set_style_pad_bottom(tab, 50, 0);
-            lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
+    /* Invalidate immediately if hub is offline */
+    DataPacket modified = pkt;
+    if (!hubOnline) {
+        modified.weatherValid = false;
+        modified.roomValid = false;
+        modified.timestamp = 0;
+    }
+    /* Otherwise check timeout */
+    else {
+        if (_lastWeatherValidMs > 0 && (now - _lastWeatherValidMs) > STALE_DATA_TIMEOUT_MS) {
+            modified.weatherValid = false;
+        }
+        if (_lastRoomValidMs > 0 && (now - _lastRoomValidMs) > STALE_DATA_TIMEOUT_MS) {
+            modified.roomValid = false;
         }
     }
+
+    _updateDashboard(modified, hubOnline);
 }
 
-void UI::_onKbEvent(lv_event_t* e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t* kb = lv_event_get_target(e);
-
-    if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
-        lv_obj_t* ta = lv_keyboard_get_textarea(kb);
-        if (ta) {
-            if (!lv_obj_has_flag(kb, LV_OBJ_FLAG_HIDDEN)) {
-                lv_obj_t* tab = lv_obj_get_parent(ta);
-                lv_obj_set_style_pad_bottom(tab, 60, 0);
-                lv_obj_clear_state(ta, LV_STATE_FOCUSED);
-                lv_obj_scroll_to_y(tab, 0, LV_ANIM_ON);
-            }
-        }
-        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
-    }
+void UI::showScreen(Screen s) {
+    _currentScreen = s;
+    lv_scr_load(s == Screen::DASHBOARD ? _scrDashboard : _scrConfig);
 }
+
+void UI::setOnConfigSubmit(void (*cb)(const char*, const char*, const char*)) {
+    _onConfigSubmit = cb;
+}
+
+void UI::setOnForceSyncCmd(void (*cb)()) {
+    _onForceSync = cb;
+}
+
+} // namespace AmbiSense::Display

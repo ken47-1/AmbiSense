@@ -2,22 +2,25 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/HubConfig.h"
 #include "config/PacketProtocol.h"
+
+/* ============ PROJECT ============ */
 #include "sensors/sensors.h"
 #include "time/rtc_manager.h"
 #include "services/weather/weather.h"
 #include "services/location/location_resolver.h"
 
-/* ============ THIRD-PARTY ============ */
+/* ============ CORE ============ */
+#include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
 
-/* ============ CORE ============ */
-#include <Arduino.h>
+namespace AmbiSense::Hub {
 
 /* =============== TYPES =============== */
 /* ============ CALLBACKS ============ */
@@ -65,6 +68,7 @@ public:
 private:
     /* ========= HANDLERS ========= */
     void _handleReceived(const uint8_t* mac, const uint8_t* data, int len);
+    void _learnDisplayMac(const uint8_t* mac);
     void _buildDataPacket(DataPacket& pkt, const WeatherData& w);
 
     /* ========= STATE ========= */
@@ -78,10 +82,12 @@ private:
     Preferences _prefs;
 
     /* ------ Config ------ */
-    char _ssid[33];
-    char _password[64];
-    char _ntpServer[64];
-    bool _hasConfig;
+    char     _ssid[33];
+    char    _password[64];
+    char    _ntpServer[64];
+    bool    _hasConfig;
+    uint8_t _displayMac[6];
+    bool    _hasDisplayMac;
 
     /* ------ Broadcast ------ */
     uint32_t _now;
@@ -98,3 +104,5 @@ private:
     OnConfigReceived _onConfig;
     OnCmdReceived    _onCmd;
 };
+
+} // namespace AmbiSense::Hub

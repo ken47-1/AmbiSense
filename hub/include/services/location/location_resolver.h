@@ -9,13 +9,15 @@
 /* ============ CORE ============ */
 #include <Arduino.h>
 
+namespace AmbiSense::Hub {
+
 /* =============== API =============== */
 class LocationResolver {
 public:
     LocationResolver();
     void   begin();
     void   update();  // Call this from Network::update()
-    String getCityName(float lat, float lon);  // Will wait for WiFi internally
+    String getCityName(float lat, float lon);  // Queues the request; update() fetches.
     String getCachedCity() const { return _cachedCity; }
     bool   isValid() const { return _valid; }
     
@@ -30,3 +32,5 @@ private:
     float    _pendingLon;
     bool     _fetchPending;
 };
+
+} // namespace AmbiSense::Hub

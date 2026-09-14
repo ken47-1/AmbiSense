@@ -2,12 +2,15 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/HubConfig.h"
 #include "config/HardwareConfig.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <RTClib.h>
+
+/* ============ CORE ============ */
 #include <Wire.h>
 
 /* =============== TYPES =============== */
@@ -20,6 +23,8 @@ struct NTPStatus {
     int       retries;
     bool      everSynced;
 };
+
+namespace AmbiSense::Hub {
 
 /* =============== API =============== */
 class RTCManager {
@@ -34,6 +39,8 @@ public:
     bool      isRunning()    const { return _running; }
 
     void forceSync() {
+        _syncInProgress       = false;
+        _syncStarted          = 0;
         _ntpStatus.everSynced = false;
         _ntpStatus.state      = SyncState::IDLE;
         _ntpStatus.retries    = 0;
@@ -52,3 +59,5 @@ private:
     bool        _syncInProgress;
     const char* _ntpServer;
 };
+
+} // namespace AmbiSense::Hub

@@ -2,18 +2,19 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
 #include "config/UIConfig.h"
+
+/* ============ PROJECT ============ */
 #include "weather/weather_types.h"
 
 /* ============ THIRD-PARTY ============ */
 #include <lvgl.h>
-#include <Preferences.h>
 
-/* ============ CORE ============ */
-#include <time.h>
-
+namespace AmbiSense::Display {
+    
 /* =============== TYPES =============== */
 /* ============ ENUMS ============ */
 enum class Screen     { DASHBOARD, CONFIG };
@@ -61,6 +62,7 @@ private:
     void _buildConfig();
     void _updateDashboard(const DataPacket& pkt, bool hubOnline);
     void _drawAnalogClock(int h, int m, int s);
+    int _lastClockSecond = -1;
 
     lv_obj_t* _makeLabel(lv_obj_t* parent, const char* txt, const lv_font_t* font,
                          uint32_t col, int x, int y);
@@ -111,10 +113,9 @@ private:
 
     bool        _passwordVisible;
 
-    Preferences _prefs;
-    String      _savedSSID;
-    String      _savedPass;
-    String      _savedNTP;
+    char        _savedSSID[33] = {};
+    char        _savedPass[64] = {};
+    char        _savedNTP[64]  = {};
     uint8_t     _savedBrightness;
     bool        _darkTheme;
     bool        _showSeconds;
@@ -123,8 +124,8 @@ private:
 
     uint32_t _lastWeatherValidMs;
     uint32_t _lastRoomValidMs;
+    uint8_t  _lastPacketSeq = 0xFF;
 
-    static UI*         _instance;
     static lv_color_t  _clockBuf[CLK_SIZE * CLK_SIZE];
 
     void (*_onConfigSubmit)(const char*, const char*, const char*);
@@ -144,3 +145,5 @@ private:
     static void _onTaEvent(lv_event_t* e);
     static void _onKbEvent(lv_event_t* e);
 };
+
+} // namespace AmbiSense::Display

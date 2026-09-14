@@ -1,9 +1,10 @@
 /* ==================== weather_types.cpp ==================== */
 #include "weather/weather_types.h"
 
-/* =============== DATA =============== */
-// NOTES ARE PARTLY COPIED FROM
-// https://www.nodc.noaa.gov/archive/arc0021/0002199/1.1/data/0-data/HTML/WMO-CODE/WMO4677.HTM
+/* =============== INTERNAL STATE =============== */
+/* ============ STATIC VARS ============ */
+/* NOTES ARE PARTLY COPIED FROM
+   https://www.nodc.noaa.gov/archive/arc0021/0002199/1.1/data/0-data/HTML/WMO-CODE/WMO4677.HTM */
 static constexpr WeatherInfo WEATHER_TABLE[] = {
     {0,  "\xF3\xB0\x96\x99", "Clear sky", WeatherColors::SUN},
 
@@ -36,10 +37,11 @@ static constexpr WeatherInfo WEATHER_TABLE[] = {
     {99, "\xF3\xB0\x99\xBE", "Thunderstorm", WeatherColors::STORM},  // Heavy, with hail
 };
 
-/* =============== INTERNAL LOOKUP =============== */
 static const int WEATHER_TABLE_SIZE =
     sizeof(WEATHER_TABLE) / sizeof(WEATHER_TABLE[0]);
 
+/* =============== INTERNAL HELPERS =============== */
+/* ============ LOGIC ============ */
 static const WeatherInfo* findWeather(int code) {
     for (int i = 0; i < WEATHER_TABLE_SIZE; ++i) {
         if (WEATHER_TABLE[i].code == code)

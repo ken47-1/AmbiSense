@@ -11,6 +11,8 @@
 #include <WiFi.h>
 #include "freertos/semphr.h"
 
+namespace AmbiSense::Hub {
+
 /* =============== TYPES =============== */
 /* ============ STRUCTS ============ */
 struct WeatherData {
@@ -41,4 +43,7 @@ private:
 
     WeatherData _data;
     SemaphoreHandle_t _mutex;
+    SemaphoreHandle_t _fetchLock;
 };
+
+} // namespace AmbiSense::Hub

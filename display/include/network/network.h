@@ -2,17 +2,17 @@
 #pragma once
 
 /* =============== INCLUDES =============== */
-/* ============ PROJECT ============ */
+
+/* ============ CONFIG ============ */
 #include "config/PacketProtocol.h"
 
-/* ============ THIRD-PARTY ============ */
+/* ============ CORE ============ */
 #include <WiFi.h>
-#include <esp_now.h>
 #include <esp_wifi.h>
+#include <esp_now.h>
 #include <Preferences.h>
 
-/* ============ CORE ============ */
-#include <Arduino.h>
+namespace AmbiSense::Display {
 
 /* =============== TYPES =============== */
 /* ============ CALLBACKS ============ */
@@ -45,6 +45,8 @@ public:
     const char* getSSID()         const { return _ssid; }
     const char* getPassword()     const { return _password; }
 
+    /* ========= ESP-NOW INTERNALS ========= */
+    /* Trampoline target for the C-style ESP-NOW RX callback. See network.cpp. */
     static void     _onDataRecv(const uint8_t* mac, const uint8_t* data, int len);
     static Network* _instance;
 
@@ -62,6 +64,7 @@ private:
     uint8_t  _hubMac[6];
     bool     _hasHubMac;
     uint8_t  _lastKnownHubChan;
+    uint8_t  _pendingHubChan;
     uint32_t _lastPacketMs;
     bool     _isConnected;
     uint32_t _scanStartMs;
@@ -77,3 +80,5 @@ private:
     OnAckReceived   _onAck;
     OnStatusChanged _onStatus;
 };
+
+} // namespace AmbiSense::Display

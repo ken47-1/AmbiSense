@@ -5,8 +5,10 @@
 /* ============ CORE ============ */
 #include <Arduino.h>
 
+namespace AmbiSense::Display {
+
 /* =============== INTERNAL STATE =============== */
-/* ============ STATIC VARS ============ */
+/* ============ SINGLETONS ============ */
 TFT_eSPI            DisplayManager::_tft;
 SPIClass            DisplayManager::_touchSpi = SPIClass(VSPI);
 XPT2046_Touchscreen DisplayManager::_touch(TOUCH_CS, TOUCH_IRQ);
@@ -69,6 +71,14 @@ void DisplayManager::update() {
     lv_timer_handler();
 }
 
+TouchPoint DisplayManager::getTouch() {
+    TS_Point p = _touch.getPoint();
+    TouchPoint out;
+    out.x = p.x;
+    out.y = p.y;
+    return out;
+}
+
 /* =============== INTERNAL HELPERS =============== */
 /* ============ CALLBACKS ============ */
 void DisplayManager::_flushCb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* px) {
@@ -111,3 +121,5 @@ void DisplayManager::setBrightness(uint8_t percent) {
 uint8_t DisplayManager::getBrightness() {
     return _currentPercent;
 }
+
+} // namespace AmbiSense::Display
