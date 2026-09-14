@@ -7,7 +7,7 @@ AmbiSense is a dual-device local-first weather and room sensor display system:
 - Hub (ESP32 WROOM-32): Fetches live weather via Wi-Fi, resolves city name from GPS coordinates, aggregates room sensors, broadcasts via ESP-NOW
 - Display (ESP32-2432S028 CYD): Receives broadcast, renders LVGL dashboard with auto-centering, allows user config
 
-Both devices are independent. They can develop and test separately. Communication uses ESP-NOW without a router.
+Both devices are independent. They can develop and test separately. Modules in the Hub live under `AmbiSense::Hub`. Modules in the Display live under `AmbiSense::Display`. Communication uses ESP-NOW without a router.
 
 ---
 
@@ -33,11 +33,11 @@ The module sends ConfigPackets to update credentials. It sends CmdPackets for co
 
 **Weather** (include/services/weather/weather.h / src/services/weather/weather.cpp)
 
-The Weather module fetches current weather from the Open-Meteo API. This API is free and does not need a key. It handles retries with exponential backoff: initial delay is 2 seconds, maximum 3 retries. It caches weather data and refreshes every 30 minutes (WEATHER_INTERVAL_MS). It returns a WeatherData struct with temperature, humidity, pressure, wind, sunrise, sunset, and WMO code. The module runs in a FreeRTOS task in the background. It uses a mutex for thread-safe access.
+The Weather module fetches current weather from the Open-Meteo API. This API is free and does not need a key. It handles retries with linear backoff: 2s, 4s, 6s. Maximum 3 retries. It caches weather data and refreshes every 30 minutes (WEATHER_INTERVAL_MS). It returns a WeatherData struct with temperature, humidity, pressure, wind, sunrise, sunset, and WMO code. The module runs in a FreeRTOS task in the background. It uses a mutex for thread-safe access.
 
 **LocationResolver** (include/services/location/location_resolver.h / src/services/location/location_resolver.cpp)
 
-The LocationResolver resolves a city name from GPS coordinates using Nominatim, the OpenStreetMap reverse geocoding service. It fetches once at boot and caches the result. If the lookup fails, it falls back to "Unknown". The module is thread-safe and needs no API key. It uses a proper User-Agent header.
+The LocationResolver resolves a city name from GPS coordinates using Nominatim, the OpenStreetMap reverse geocoding service. It queues the fetch from `Network::_buildDataPacket` and does the fetch from `update()`, rate-limited. It caches the result. If the lookup fails, it falls back to "Unknown". The module is thread-safe and needs no API key. It uses a proper User-Agent header.
 
 **Sensors** (include/sensors/sensors.h / src/sensors/sensors.cpp)
 
@@ -52,7 +52,7 @@ The RTCManager interfaces with the DS3231 real-time clock. It provides an accura
 The main loop runs three tasks:
 
 1. `sensors.update()` polls the DHT22 if the interval has elapsed.
-2. `rtc.update(network.isConnected(), network.getNTPServer())` checks and performs NTP sync.
+2. `rtc.update(millis(), network.isConnected(), network.getNTPServer())` checks and performs NTP sync.
 3. `network.update()` maintains WiFi and broadcasts a DataPacket every 250ms.
 
 ### Data Flow (Hub)
@@ -76,9 +76,9 @@ flowchart TD
 
 ### Packet Structure
 
-All packet definitions are in `include/config/Config.h` (shared between Hub and Display).
+All packet definitions are in `include/config/PacketProtocol.h` (shared between Hub and Display).
 
-**DataPacket** (Hub to Display, broadcast every 250ms, about 100 bytes)
+**DataPacket** (Hub to Display, broadcast every 250ms, 108 bytes)
 
 ```
 uint8_t  type              // PACKET_TYPE_DATA (0x01)
@@ -109,13 +109,13 @@ float    roomTemp          // Degrees Celsius
 float    roomHumi          // Percent
 ```
 
-**ConfigPacket** (Display to Hub, on demand, about 165 bytes)
+**ConfigPacket** (Display to Hub, on demand, 163 bytes)
 
 - SSID (32 bytes), password (63 bytes), NTP server (63 bytes), seq
 
-**CmdPacket** (Display to Hub, on demand)
+**CmdPacket** (Display to Hub, on demand, 3 bytes)
 
-- Command ID (e.g., CMD_FORCE_NTP_SYNC), seq
+- type (1), cmd (1), seq (1)
 
 **AckPacket** (bidirectional)
 
@@ -233,7 +233,7 @@ flowchart TD
 
 **Recovery Process**
 
-1. The Display detects missing packets using the `g_lastPktMs` timestamp.
+1. The Display detects missing packets via `Network::_lastPacketMs`, checked in `Network::update()`.
 2. It enters scanning mode and hops channels every second.
 3. It locks to the first channel that receives a valid DataPacket.
 4. It resumes normal operation with live data.
@@ -300,22 +300,45 @@ Position formula: `sx = (VDIV_X - total_width) / 2 + offset`
 - The Display checks `pkt.timestamp >= 1000000000UL` (Unix epoch threshold)
 - If the timestamp is invalid, it shows placeholders (`--°C`, `Unknown`, etc.)
 - The status dot turns red when the `hubOnline` flag is false
-- There is no separate 5-second timeout. The system relies on packet timestamp validity.
+- `STALE_DATA_TIMEOUT_MS` (5000) marks weather and room data stale when no valid packet arrives within that window
 
 ---
 
 ## Configuration Files
 
-### Shared: Config.h
+### Shared: PacketProtocol.h
 
-The `Config.h` file defines protocol constants, intervals, and packet types. It is shared by both Hub and Display.
+The `PacketProtocol.h` file defines protocol constants, packet types, packet structs, and command IDs. It is shared by both Hub and Display.
 
-- DEBUG_NETWORK = 0: disables ESP-NOW packet logging
-- TIME: GMT_OFFSET_SEC = 7 * 3600 (UTC+7, Bangkok), DAYLIGHT_OFFSET_SEC = 0 (no DST), TARGET_SYNC_HOUR = 12, TARGET_SYNC_MINUTE = 0
-- WEATHER: WEATHER_INTERVAL_MS = 1,800,000 (30 minutes), WEATHER_RETRY_DELAY_MS = 2000, WEATHER_MAX_RETRIES = 3
-- INTERVALS: DHT_INTERVAL_MS = 2000, BROADCAST_INTERVAL_MS = 250, SCAN_HOP_INTERVAL_MS = 1000, SYNC_CHECK_INTERVAL_MS = 1000
-- ESP-NOW: broadcast address, packet types, command IDs
-- PACKET STRUCTS: DataPacket, ConfigPacket, CmdPacket, AckPacket
+- PACKET TYPES: DATA, CONFIG, ACK, CMD
+- COMMAND IDs: CMD_FORCE_NTP_SYNC
+- ESP-NOW broadcast address
+- PACKET STRUCTS: DataPacket, ConfigPacket, AckPacket, CmdPacket
+
+### Hub: HubConfig.h
+
+- TIME: GMT_OFFSET_SEC = 7 * 3600 (UTC+7), DAYLIGHT_OFFSET_SEC = 0, TARGET_SYNC_HOUR = 12, TARGET_SYNC_MINUTE = 0
+- WEATHER: WEATHER_INTERVAL_MS = 1800000 (30 min), WEATHER_RETRY_DELAY_MS = 2000, WEATHER_MAX_RETRIES = 3
+- LOCATION: LOCATION_RETRY_INTERVAL_MS = 5000, LOCATION_MAX_RETRIES = 10
+- INTERVALS: DHT_INTERVAL_MS = 2000, BROADCAST_INTERVAL_MS = 250, SYNC_CHECK_INTERVAL_MS = 1000
+- TIMEOUTS: WIFI_CONNECT_TIMEOUT_MS = 15000, WIFI_RETRY_INTERVAL_MS = 30000
+
+### Display: DisplayConfig.h
+
+- BRIGHTNESS: BRIGHTNESS_MIN_PERCENT = 5, BRIGHTNESS_MAX_PERCENT = 100
+- INTERVALS: SCAN_HOP_INTERVAL_MS = 1000
+- TIMEOUTS: HUB_OFFLINE_TIMEOUT_MS = 15000, STALE_DATA_TIMEOUT_MS = 5000
+
+### Shared: DebugConfig.h
+
+- DEBUG_ENABLED: master compile-time gate for `DBG_PRINT`
+
+### Debug Channels
+
+Runtime channels are defined in `include/debug/debug.h`. Each firmware defines its own `Debug::Ch` enum:
+
+- Display: CH_NETWORK, CH_DISPLAY, CH_UI
+- Hub: CH_NETWORK, CH_GEO, CH_WEATHER, CH_SENSORS, CH_RTC
 
 ### Device-Specific: HardwareConfig.h
 
@@ -324,16 +347,19 @@ The `Config.h` file defines protocol constants, intervals, and packet types. It 
 - DHT22: GPIO 25
 - DS3231 I2C: SDA GPIO 33, SCL GPIO 32
 
-**Display** pins:
+**Display** pins (touch, from `HardwareConfig.h`):
 
-- TFT SPI: CS 5, DC 4, CLK 18, MOSI 23, MISO 19
-- Touch SPI: CS 32, CLK 25, MOSI 33, MISO 27
-- Backlight: GPIO 14
+- TOUCH_CS: 33
+- TOUCH_IRQ: 36
+- TOUCH_MOSI: 32
+- TOUCH_MISO: 39
+- TOUCH_CLK: 25
+
+> TFT pins are defined in `User_Setup.h`, not `HardwareConfig.h`.
 
 ### User-Editable: LocationConfig.h
 
 - LOCATION_LAT, LOCATION_LON: coordinates for the weather API and reverse geocoding
-- LOCATION_NAME: display string (e.g., Bangkok); this is a fallback if geocoding fails
 - Note: LocationResolver uses the Nominatim API with no API key
 
 ### UI Layout: UIConfig.h
@@ -368,6 +394,14 @@ These constants are tuned for reliability. Adjusting them may affect system resp
 ---
 
 ## Design Patterns
+
+### Runtime Debug Channels
+
+Debug output uses a compile-time master gate (`DEBUG_ENABLED`) plus a runtime channel mask. Call sites use `DBG_PRINT(channel, fmt, ...)`. When `DEBUG_ENABLED` is 0, the macro expands to nothing and the arguments are not evaluated.
+
+Channels are enabled at runtime via `Debug::set()`, `Debug::toggle()`, or `Debug::set_all()`. State lives in an 8-bit mask. Use `Debug::dump()` to print the mask and per-channel state.
+
+Each firmware defines its own channel list. The Hub has five. The Display has three.
 
 ### Non-Blocking Architecture
 

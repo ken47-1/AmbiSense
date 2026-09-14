@@ -185,10 +185,11 @@ All settings persist across reboots via NVS.
 
 | File | Setting | Default |
 |---|---|---|
-| Config.h | GMT_OFFSET_SEC | 7 * 3600 (UTC+7) |
-| Config.h | WEATHER_INTERVAL_MS | 30 * 60 * 1000 |
-| LocationConfig.h | LOCATION_LAT / LOCATION_LON | Required |
-| UIConfig.h | Screen layout constants | 320x240 |
+| hub/config/HubConfig.h | GMT_OFFSET_SEC | 7 * 3600 (UTC+7) |
+| hub/config/HubConfig.h | WEATHER_INTERVAL_MS | 1800000 |
+| hub/config/LocationConfig.h | LOCATION_LAT / LOCATION_LON | Required |
+| display/config/UIConfig.h | Screen layout constants | 320x240 |
+| display/config/DisplayConfig.h | HUB_OFFLINE_TIMEOUT_MS | 15000 |
 
 ## Packet Protocol
 
@@ -231,11 +232,13 @@ AmbiSense/
 ├── display/               # ESP32-2432S028 Display firmware
 │   ├── include/
 │   │   ├── config/        # Config, HardwareConfig, UIConfig
+│   │   ├── debug/         # debug.h
 │   │   ├── display/       # display_manager.h, ui.h
 │   │   ├── fonts/         # LVGL font headers
 │   │   ├── network/       # network.h
 │   │   └── weather/       # weather_types.h
 │   ├── src/
+│   │   ├── debug/         # debug.cpp
 │   │   ├── display/       # display_manager.cpp, ui.cpp
 │   │   ├── fonts/         # Font bitmaps (.c)
 │   │   ├── network/       # network.cpp
@@ -247,6 +250,7 @@ AmbiSense/
 ├── hub/                   # ESP32 Hub firmware
 │   ├── include/
 │   │   ├── config/        # HubConfig, HardwareConfig, LocationConfig
+│   │   ├── debug/         # debug.h
 │   │   ├── network/       # network.h
 │   │   ├── sensors/       # sensors.h
 │   │   ├── services/
@@ -254,6 +258,7 @@ AmbiSense/
 │   │   │   └── weather/   # weather.h
 │   │   └── time/          # rtc_manager.h
 │   ├── src/
+│   │   ├── debug/         # debug.cpp
 │   │   ├── network/       # network.cpp
 │   │   ├── sensors/       # sensors.cpp
 │   │   ├── services/
@@ -264,6 +269,7 @@ AmbiSense/
 │   └── platformio.ini
 ├── docs/
 │   ├── Code_Layout_Standard.md
+│   ├── Debug_Standard.md
 │   └── MDI_Symbols.md
 ├── AmbiSense_ARCHITECTURE.md
 └── README.md
@@ -279,6 +285,7 @@ AmbiSense/
 | Config not saving | pio run -t erase |
 | Keyboard covers text fields | Dynamic padding should handle this; check _onTaEvent callback |
 | Theme switch crashes | Async deletion fix applied; update if still occurs |
+| No debug output | `DEBUG_ENABLED=0`, or the channel mask is empty. Call `Debug::set(...)` and `Debug::dump()` |
 
 ## Performance
 
@@ -295,12 +302,12 @@ AmbiSense/
 
 | Aspect | File | Setting |
 |---|---|---|
-| Timezone | Config.h | GMT_OFFSET_SEC |
-| Weather interval | Config.h | WEATHER_INTERVAL_MS |
-| Brightness limits | DisplayConfig.h | BRIGHTNESS_MIN_PERCENT / BRIGHTNESS_MAX_PERCENT |
-| Theme colors | ui.cpp | DARK / LIGHT palettes |
-| Location | LocationConfig.h | LOCATION_LAT / LOCATION_LON |
-| UI Layout | UIConfig.h | Screen size, margins, gaps |
+| Timezone | hub/config/HubConfig.h | GMT_OFFSET_SEC |
+| Weather interval | hub/config/HubConfig.h | WEATHER_INTERVAL_MS |
+| Brightness limits | display/config/DisplayConfig.h | BRIGHTNESS_MIN_PERCENT / BRIGHTNESS_MAX_PERCENT |
+| Theme colors | display/ui.cpp | DARK / LIGHT palettes |
+| Location | hub/config/LocationConfig.h | LOCATION_LAT / LOCATION_LON |
+| UI Layout | display/config/UIConfig.h | Screen size, margins, gaps |
 
 ## For Developers
 
@@ -312,6 +319,19 @@ This project enforces a strict code layout standard documented in docs/Code_Layo
 - Comment hierarchy: T1 (file header) to T7 (inline notes)
 
 When contributing, follow the visual hierarchy scale defined in the standard document.
+
+### Debug Output
+
+Each firmware ships a runtime debug system. Enable channels at boot:
+
+```cpp
+Debug::init();
+Debug::set(Debug::Ch::CH_NETWORK, true);
+```
+
+Call sites use `DBG_PRINT(Debug::Ch::CH_NETWORK, "message %d", value);`. See [`docs/Debug_Standard.md`](docs/Debug_Standard.md).
+
+The master compile-time gate is `DEBUG_ENABLED` in `config/DebugConfig.h`. With the gate off, `DBG_PRINT` expands to nothing.
 
 ## Links
 

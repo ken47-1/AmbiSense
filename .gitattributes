@@ -1,0 +1,26 @@
+# Normalize all text files to LF in the repository,
+# and to LF in the working tree on every platform.
+* text=auto eol=lf
+
+# Explicit: Markdown, C/C++, headers, configs
+*.md    text eol=lf
+*.c     text eol=lf
+*.cpp   text eol=lf
+*.h     text eol=lf
+*.hpp   text eol=lf
+*.ini   text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Binary — never touch
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.bin   binary
+*.elf   binary
