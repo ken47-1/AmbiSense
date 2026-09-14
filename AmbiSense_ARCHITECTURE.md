@@ -329,16 +329,16 @@ The `PacketProtocol.h` file defines protocol constants, packet types, packet str
 - INTERVALS: SCAN_HOP_INTERVAL_MS = 1000
 - TIMEOUTS: HUB_OFFLINE_TIMEOUT_MS = 15000, STALE_DATA_TIMEOUT_MS = 5000
 
-### Shared: DebugConfig.h
+### Shared: LogConfig.h
 
-- DEBUG_ENABLED: master compile-time gate for `DBG_PRINT`
+- `LOG_ENABLED`: master compile-time gate for the `LOG_*` macros
 
-### Debug Channels
+### Log Channels
 
-Runtime channels are defined in `include/debug/debug.h`. Each firmware defines its own `Debug::Ch` enum:
+Channels live in `include/log/log.h`. Each firmware defines its own `Log::Ch` enum:
 
-- Display: CH_NETWORK, CH_DISPLAY, CH_UI
-- Hub: CH_NETWORK, CH_GEO, CH_WEATHER, CH_SENSORS, CH_RTC
+- Display: CH_SYS, CH_NET, CH_DSP, CH_UI
+- Hub: CH_SYS, CH_NET, CH_GEO, CH_WEA, CH_SNR, CH_RTC
 
 ### Device-Specific: HardwareConfig.h
 
@@ -395,13 +395,15 @@ These constants are tuned for reliability. Adjusting them may affect system resp
 
 ## Design Patterns
 
-### Runtime Debug Channels
+### Runtime Log Levels and Channels
 
-Debug output uses a compile-time master gate (`DEBUG_ENABLED`) plus a runtime channel mask. Call sites use `DBG_PRINT(channel, fmt, ...)`. When `DEBUG_ENABLED` is 0, the macro expands to nothing and the arguments are not evaluated.
+Log output uses a compile-time master gate (`LOG_ENABLED`) plus two runtime masks: a level mask and a channel mask. Call sites use `LOG_D(channel, fmt, ...)`, `LOG_I`, `LOG_W`, or `LOG_E`. When `LOG_ENABLED` is 0, the macros expand to nothing and the arguments are not evaluated.
 
-Channels are enabled at runtime via `Debug::set()`, `Debug::toggle()`, or `Debug::set_all()`. State lives in an 8-bit mask. Use `Debug::dump()` to print the mask and per-channel state.
+Levels are `D`, `I`, `W`, `E`. Default mask is `I | W | E`. Debug is off.
 
-Each firmware defines its own channel list. The Hub has five. The Display has three.
+Channels and levels are enabled at runtime via `Log::setChannel()` and `Log::setLevel()`. State lives in two 8-bit masks. Use `Log::dump()` to print both masks and per-entry state.
+
+Each firmware defines its own channel list. The Hub has six. The Display has four.
 
 ### Non-Blocking Architecture
 

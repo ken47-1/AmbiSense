@@ -51,12 +51,11 @@ Examples:
 [I][NET ] ESP-NOW peer added: 24:6f:28:...
 [W][WEA ] stale data, using last good
 [E][GEO ] fetch failed: -1
-[D][SNR ] DHT22 raw: 22.4 / 41.0
 ```
 
 The level goes first so errors land in the left column.
 
-No timestamps. The format is fixed. Do not add a timestamp to the message.
+No timestamps.
 
 ---
 
@@ -176,9 +175,8 @@ LOG_E(ch, fmt, ...)
 - One log call per logical event. Do not split one event across two calls.
 - Pick the level that matches the reader, not the writer. A recoverable problem is `W`, not `E`. An expected event is `I`, not `D`.
 - Write the message so the tag prefix is not repeated in the text.
-
-- Correct: `LOG_E(Log::Ch::CH_NET, "Config TX failed: %d", err);`
-- Wrong: `LOG_E(Log::Ch::CH_NET, "[NET] Config TX failed: %d", err);`
+  - Correct: `LOG_E(Log::Ch::CH_NET, "Config TX failed: %d", err);`
+  - Wrong: `LOG_E(Log::Ch::CH_NET, "[NET] Config TX failed: %d", err);`
 - Keep the format string under 60 characters. Details belong in the arguments.
 - Never log inside a hot path without a rate limit or a counter.
 - Never log a pointer, an address, or memory contents. Use a dedicated channel if needed.

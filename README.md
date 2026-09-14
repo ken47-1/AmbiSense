@@ -232,13 +232,13 @@ AmbiSense/
 ├── display/               # ESP32-2432S028 Display firmware
 │   ├── include/
 │   │   ├── config/        # Config, HardwareConfig, UIConfig
-│   │   ├── debug/         # debug.h
+│   │   ├── log/           # log.h
 │   │   ├── display/       # display_manager.h, ui.h
 │   │   ├── fonts/         # LVGL font headers
 │   │   ├── network/       # network.h
 │   │   └── weather/       # weather_types.h
 │   ├── src/
-│   │   ├── debug/         # debug.cpp
+│   │   ├── log/           # log.cpp
 │   │   ├── display/       # display_manager.cpp, ui.cpp
 │   │   ├── fonts/         # Font bitmaps (.c)
 │   │   ├── network/       # network.cpp
@@ -250,7 +250,7 @@ AmbiSense/
 ├── hub/                   # ESP32 Hub firmware
 │   ├── include/
 │   │   ├── config/        # HubConfig, HardwareConfig, LocationConfig
-│   │   ├── debug/         # debug.h
+│   │   ├── log/           # log.h
 │   │   ├── network/       # network.h
 │   │   ├── sensors/       # sensors.h
 │   │   ├── services/
@@ -258,7 +258,7 @@ AmbiSense/
 │   │   │   └── weather/   # weather.h
 │   │   └── time/          # rtc_manager.h
 │   ├── src/
-│   │   ├── debug/         # debug.cpp
+│   │   ├── log/           # log.cpp
 │   │   ├── network/       # network.cpp
 │   │   ├── sensors/       # sensors.cpp
 │   │   ├── services/
@@ -269,7 +269,7 @@ AmbiSense/
 │   └── platformio.ini
 ├── docs/
 │   ├── Code_Layout_Standard.md
-│   ├── Debug_Standard.md
+│   ├── Log_Standard.md
 │   └── MDI_Symbols.md
 ├── AmbiSense_ARCHITECTURE.md
 └── README.md
@@ -285,7 +285,7 @@ AmbiSense/
 | Config not saving | pio run -t erase |
 | Keyboard covers text fields | Dynamic padding should handle this; check _onTaEvent callback |
 | Theme switch crashes | Async deletion fix applied; update if still occurs |
-| No debug output | `DEBUG_ENABLED=0`, or the channel mask is empty. Call `Debug::set(...)` and `Debug::dump()` |
+| No log output | `LOG_ENABLED=0`, or the channel mask is empty. Call `Log::setChannel(...)` and `Log::dump()` |
 
 ## Performance
 
@@ -320,18 +320,17 @@ This project enforces a strict code layout standard documented in docs/Code_Layo
 
 When contributing, follow the visual hierarchy scale defined in the standard document.
 
-### Debug Output
+### Log Output
 
-Each firmware ships a runtime debug system. Enable channels at boot:
+Each firmware ships a leveled log system. Enable channels and levels at boot:
 
-```cpp
-Debug::init();
-Debug::set(Debug::Ch::CH_NETWORK, true);
-```
+Log::init();
+Log::setChannel(Log::Ch::CH_NET, true);
+Log::setLevel(Log::Lvl::D, true);
 
-Call sites use `DBG_PRINT(Debug::Ch::CH_NETWORK, "message %d", value);`. See [`docs/Debug_Standard.md`](docs/Debug_Standard.md).
+Call sites use `LOG_D(Log::Ch::CH_NET, "message %d", value);` or `LOG_I`, `LOG_W`, `LOG_E`. See [`docs/Log_Standard.md`](docs/Log_Standard.md).
 
-The master compile-time gate is `DEBUG_ENABLED` in `config/DebugConfig.h`. With the gate off, `DBG_PRINT` expands to nothing.
+The master compile-time gate is `LOG_ENABLED` in `config/LogConfig.h`. With the gate off, the macros expand to nothing.
 
 ## Links
 
