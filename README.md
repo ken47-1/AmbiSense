@@ -1,5 +1,7 @@
 # AmbiSense
 
+*This project was developed with AI-assisted code generation and human oversight.*
+
 Real-time ambient weather and room sensor display system. ESP32 Hub fetches live weather via Wi-Fi, resolves city name from GPS coordinates via OpenStreetMap, and broadcasts to an ESP32-2432S028 Display over ESP-NOW. The dashboard auto-centers all UI elements for perfect alignment regardless of value length.
 
 ![Display Dashboard](https://github.com/ken47-1/AmbiSense/blob/main/images/IMG_20260712_141549.jpg?raw=true)
