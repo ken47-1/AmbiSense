@@ -108,7 +108,7 @@ Rules:
 - Only include headers that the public API needs. Internal-only includes belong in the `.cpp` file.
 - Put `CONFIG` first under `INCLUDES`. Its position is fixed.
 - Put every configuration header under `CONFIG`. A configuration header holds constants, pin maps, protocol layouts, timeouts, or feature flags.
-- A forward declaration is a T4 entry under `TYPES`.
+- A forward declaration is a T3 entry under `TYPES`.
 
 ---
 
@@ -163,7 +163,7 @@ Rules:
 /* ============ LIFECYCLE ============ */
 /* init(), begin(), reset(). */
 
-/* ========= begin / update ========= */
+/* ============ begin / update ============ */
 /* Main loop entry points. */
 ```
 
