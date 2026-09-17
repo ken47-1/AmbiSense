@@ -1,6 +1,6 @@
-# Code Layout and Style Standard
+# C++ Code Layout and Style Standard
 
-This document defines the required structure and conventions for source files in this project.
+This document defines the required structure and conventions for C++ source files in this project.
 
 ---
 
