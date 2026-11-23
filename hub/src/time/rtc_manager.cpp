@@ -22,7 +22,7 @@ RTCManager::RTCManager()
 }
 
 void RTCManager::begin() {
-    Wire.begin(RTC_SDA, RTC_SCL);
+    Wire.begin(I2C_SDA, I2C_SCL);
     if (!_rtc.begin()) {
         Serial.println("[RTC] DS3231 not found");
         return;

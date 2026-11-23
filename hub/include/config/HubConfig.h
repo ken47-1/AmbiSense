@@ -25,7 +25,7 @@ constexpr uint32_t LOCATION_COOLDOWN_MS       = 30 * 60 * 1000;  // Cooldown int
 constexpr uint32_t LOCATION_MAX_RETRIES       = 10;              // Max retries
 
 /* =============== INTERVALS =============== */
-constexpr uint32_t DHT_INTERVAL_MS        = 2000;                // DHT22 poll rate
+constexpr uint32_t SENSOR_INTERVAL_MS     = 2000;                // Sensor poll rate
 constexpr uint32_t BROADCAST_INTERVAL_MS  = 250;                 // ESP-NOW rate
 constexpr uint32_t SYNC_CHECK_INTERVAL_MS = 1000;                // RTC sync check rate
 
